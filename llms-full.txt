@@ -1,0 +1,3991 @@
+# Get started with Genkit using Go
+
+This guide shows you how to get started with Genkit in a Go app.
+
+If you discover issues with the libraries or this documentation please report
+them in our [GitHub repository](https://github.com/firebase/genkit/).
+
+## Make your first request
+
+[Section titled “Make your first request”](#make-your-first-request)
+
+1. Install Go 1.24 or later. See [Download and install](https://go.dev/doc/install)
+in the official Go docs.
+1. Initialize a new Go project directory with the Genkit package:
+
+Terminal window ```
+mkdir genkit-intro && cd genkit-intro
+go mod init example/genkit-intro
+go get github.com/firebase/genkit/go
+```
+1. Create a `main.go` file with the following sample code:
+
+```
+package main
+import (    "context"    "log"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {    ctx := context.Background()
+    // Initialize Genkit with the Google AI plugin and Gemini 2.0 Flash.    g, err := genkit.Init(ctx,        genkit.WithPlugins(&googlegenai.GoogleAI{}),        genkit.WithDefaultModel("googleai/gemini-2.5-flash"),    )    if err != nil {        log.Fatalf("could not initialize Genkit: %v", err)    }
+    resp, err := genkit.Generate(ctx, g, ai.WithPrompt("What is the meaning of life?"))    if err != nil {        log.Fatalf("could not generate model response: %v", err)    }
+    log.Println(resp.Text())}
+```
+1. Configure your Gemini API key by setting the `GEMINI_API_KEY` environment
+variable:
+
+Terminal window ```
+export GEMINI_API_KEY=<your API key>
+```
+
+If you don’t already have one, [create a key in Google AI Studio](https://aistudio.google.com/apikey).
+Google AI provides a generous free-of-charge tier and does not require a
+credit card to get started.
+1. Run the app to see the model response:
+
+Terminal window ```
+go run .# Example output (may vary):# There is no single universally agreed-upon meaning of life; it's a deeply# personal question. Many find meaning through connection, growth,# contribution, happiness, or discovering their own purpose.
+```
+
+## Next steps
+
+[Section titled “Next steps”](#next-steps)
+
+Now that you’re set up to make model requests with Genkit, learn how to use more
+Genkit capabilities to build your AI-powered apps and workflows. To get started
+with additional Genkit capabilities, see the following guides:
+
+- [Developer tools](/docs/devtools): Learn how to set up and use
+Genkit’s CLI and developer UI to help you locally test and debug your app.
+- [Generating content](/go/docs/models): Learn how to use Genkit’s
+unified generation API to generate text and structured data from any
+supported model.
+- [Creating flows](/go/docs/flows): Learn how to use special Genkit
+functions, called flows, that provide end-to-end observability for workflows
+and rich debugging from Genkit tooling.
+- [Managing prompts](/go/docs/dotprompt): Learn how Genkit helps you
+manage your prompts and configuration together as code.
+---
+# Generating content with AI models
+
+At the heart of generative AI are AI *models*. The two most prominent
+examples of generative models are large language models (LLMs) and image
+generation models. These models take input, called a *prompt* (most commonly
+text, an image, or a combination of both), and from it produce as output text,
+an image, or even audio or video.
+
+The output of these models can be surprisingly convincing: LLMs generate text
+that appears as though it could have been written by a human being, and image
+generation models can produce images that are very close to real photographs or
+artwork created by humans.
+
+In addition, LLMs have proven capable of tasks beyond simple text generation:
+
+- Writing computer programs.
+- Planning subtasks that are required to complete a larger task.
+- Organizing unorganized data.
+- Understanding and extracting information data from a corpus of text.
+- Following and performing automated activities based on a text description of
+the activity.
+
+There are many models available to you, from several different providers. Each
+model has its own strengths and weaknesses and one model might excel at one task
+but perform less well at others. Apps making use of generative AI can often
+benefit from using multiple different models depending on the task at hand.
+
+As an app developer, you typically don’t interact with generative AI models
+directly, but rather through services available as web APIs. Although these
+services often have similar functionality, they all provide them through
+different and incompatible APIs. If you want to make use of multiple model
+services, you have to use each of their proprietary SDKs, potentially
+incompatible with each other. And if you want to upgrade from one model to the
+newest and most capable one, you might have to build that integration all over
+again.
+
+Genkit addresses this challenge by providing a single interface that abstracts
+away the details of accessing potentially any generative AI model service, with
+several prebuilt implementations already available. Building your AI-powered
+app around Genkit simplifies the process of making your first generative AI call
+and makes it equally straightforward to combine multiple models or swap one
+model for another as new models emerge.
+
+### Before you begin
+
+[Section titled “Before you begin”](#before-you-begin)
+
+If you want to run the code examples on this page, first complete the steps in
+the [Get started](/go/docs/get-started-go) guide. All of the examples assume that you
+have already installed Genkit as a dependency in your project.
+
+### Models supported by Genkit
+
+[Section titled “Models supported by Genkit”](#models-supported-by-genkit)
+
+Genkit is designed to be flexible enough to use potentially any generative AI
+model service. Its core libraries define the common interface for working with
+models, and model plugins define the implementation details for working with a
+specific model and its API.
+
+The Genkit team maintains plugins for working with models provided by Vertex AI,
+Google Generative AI, and Ollama:
+
+- Gemini family of LLMs, through the
+[Google GenAI plugin](/go/docs/plugins/google-genai).
+- Gemma 3, Llama 4, and many more open models, through the
+[Ollama plugin](/go/docs/plugins/ollama)
+(you must host the Ollama server yourself).
+
+### Loading and configuring model plugins
+
+[Section titled “Loading and configuring model plugins”](#loading-and-configuring-model-plugins)
+
+Before you can use Genkit to start generating content, you need to load and
+configure a model plugin. If you’re coming from the Get Started guide,
+you’ve already done this. Otherwise, see the [Get Started](/go/docs/get-started-go)
+guide or the individual plugin’s documentation and follow the steps there before
+continuing.
+
+### The `genkit.Generate()` function
+
+[Section titled “The genkit.Generate() function”](#the-genkitgenerate-function)
+
+In Genkit, the primary interface through which you interact with generative AI
+models is the `genkit.Generate()` function.
+
+The simplest `genkit.Generate()` call specifies the model you want to use and a
+text prompt:
+
+```
+package main
+import (    "context"    "log"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {  ctx := context.Background()
+  g, err := genkit.Init(ctx,    genkit.WithPlugins(&googlegenai.GoogleAI{}),    genkit.WithDefaultModel("googleai/gemini-2.5-flash"),  )  if err != nil {    log.Fatalf("could not initialize Genkit: %v", err)  }
+  resp, err := genkit.Generate(ctx, g,    ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),  )  if err != nil {    log.Fatalf("could not generate model response: %v", err)  }
+  log.Println(resp.Text())}
+```
+
+When you run this brief example, it will print out some debugging information
+followed by the output of the `genkit.Generate()` call, which will usually be
+Markdown text as in the following example:
+
+```
+## The Blackheart's Bounty
+**A hearty stew of slow-cooked beef, spiced with rum and molasses, served in ahollowed-out cannonball with a side of crusty bread and a dollop of tangypineapple salsa.**
+**Description:** This dish is a tribute to the hearty meals enjoyed by pirateson the high seas. The beef is tender and flavorful, infused with the warm spicesof rum and molasses. The pineapple salsa adds a touch of sweetness and acidity,balancing the richness of the stew. The cannonball serving vessel adds a fun andthematic touch, making this dish a perfect choice for any pirate-themedadventure.
+```
+
+Run the script again and you’ll get a different output.
+
+The preceding code sample sent the generation request to the default model,
+which you specified when you configured the Genkit instance.
+
+You can also specify a model for a single `genkit.Generate()` call:
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithModelName("googleai/gemini-2.5-pro"),  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),)
+```
+
+A model string identifier looks like `providerid/modelid`, where the provider ID
+(in this case, `googleai`) identifies the plugin, and the model ID is a
+plugin-specific string identifier for a specific version of a model.
+
+These examples also illustrate an important point: when you use
+`genkit.Generate()` to make generative AI model calls, changing the model you
+want to use is a matter of passing a different value to the model
+parameter. By using `genkit.Generate()` instead of the native model SDKs, you
+give yourself the flexibility to more easily use several different models in
+your app and change models in the future.
+
+So far you have only seen examples of the simplest `genkit.Generate()` calls.
+However, `genkit.Generate()` also provides an interface for more advanced
+interactions with generative models, which you will see in the sections that
+follow.
+
+### System prompts
+
+[Section titled “System prompts”](#system-prompts)
+
+Some models support providing a *system prompt*, which gives the model
+instructions as to how you want it to respond to messages from the user. You can
+use the system prompt to specify characteristics such as a persona you want the
+model to adopt, the tone of its responses, and the format of its responses.
+
+If the model you’re using supports system prompts, you can provide one with the
+`ai.WithSystem()` option:
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithSystem("You are a food industry marketing consultant."),  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),)
+```
+
+For models that don’t support system prompts, `ai.WithSystem()` simulates it by
+modifying the request to appear *like* a system prompt.
+
+### Model parameters
+
+[Section titled “Model parameters”](#model-parameters)
+
+The `genkit.Generate()` function takes a `ai.WithConfig()` option, through which
+you can specify optional settings that control how the model generates content:
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithModelName("googleai/gemini-2.5-flash"),  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),  ai.WithConfig(&googlegenai.GeminiConfig{    MaxOutputTokens: 500,    StopSequences:   ["<end>", "<fin>"],    Temperature:     0.5,    TopP:            0.4,    TopK:            50,  }),)
+```
+
+The exact parameters that are supported depend on the individual model and model
+API. However, the parameters in the previous example are common to almost every
+model. The following is an explanation of these parameters:
+
+#### Parameters that control output length
+
+[Section titled “Parameters that control output length”](#parameters-that-control-output-length)
+
+**MaxOutputTokens**
+
+LLMs operate on units called *tokens*. A token usually, but does not
+necessarily, map to a specific sequence of characters. When you pass a prompt to
+a model, one of the first steps it takes is to *tokenize* your prompt string
+into a sequence of tokens. Then, the LLM generates a sequence of tokens from the
+tokenized input. Finally, the sequence of tokens gets converted back into text,
+which is your output.
+
+The maximum output tokens parameter sets a limit on how many tokens to
+generate using the LLM. Every model potentially uses a different tokenizer, but
+a good rule of thumb is to consider a single English word to be made of 2 to 4
+tokens.
+
+As stated earlier, some tokens might not map to character sequences. One such
+example is that there is often a token that indicates the end of the sequence:
+when an LLM generates this token, it stops generating more. Therefore, it’s
+possible and often the case that an LLM generates fewer tokens than the maximum
+because it generated the “stop” token.
+
+**StopSequences**
+
+You can use this parameter to set the tokens or token sequences that, when
+generated, indicate the end of LLM output. The correct values to use here
+generally depend on how the model was trained, and are usually set by the model
+plugin. However, if you have prompted the model to generate another stop
+sequence, you might specify it here.
+
+Note that you are specifying character sequences, and not tokens per se. In most
+cases, you will specify a character sequence that the model’s tokenizer maps to
+a single token.
+
+#### Parameters that control “creativity”
+
+[Section titled “Parameters that control “creativity””](#parameters-that-control-creativity)
+
+The *temperature*, *top-p*, and *top-k* parameters together control how
+“creative” you want the model to be. This section provides very brief
+explanations of what these parameters mean, but the more important point is
+this: these parameters are used to adjust the character of an LLM’s output. The
+optimal values for them depend on your goals and preferences, and are likely to
+be found only through experimentation.
+
+**Temperature**
+
+LLMs are fundamentally token-predicting machines. For a given sequence of tokens
+(such as the prompt) an LLM predicts, for each token in its vocabulary, the
+likelihood that the token comes next in the sequence. The temperature is a
+scaling factor by which these predictions are divided before being normalized to
+a probability between 0 and 1.
+
+Low temperature values—between 0.0 and 1.0—amplify the difference in
+likelihoods between tokens, with the result that the model will be even less
+likely to produce a token it already evaluated to be unlikely. This is often
+perceived as output that is less creative. Although 0.0 is technically not a
+valid value, many models treat it as indicating that the model should behave
+deterministically, and to only consider the single most likely token.
+
+High temperature values—those greater than 1.0—compress the
+differences in likelihoods between tokens, with the result that the model
+becomes more likely to produce tokens it had previously evaluated to be
+unlikely. This is often perceived as output that is more creative. Some model
+APIs impose a maximum temperature, often 2.0.
+
+**TopP**
+
+*Top-p* is a value between 0.0 and 1.0 that controls the number of possible
+tokens you want the model to consider, by specifying the cumulative probability
+of the tokens. For example, a value of 1.0 means to consider every possible
+token (but still take into account the probability of each token). A value of
+0.4 means to only consider the most likely tokens, whose probabilities add up to
+0.4, and to exclude the remaining tokens from consideration.
+
+**TopK**
+
+*Top-k* is an integer value that also controls the number of possible tokens you
+want the model to consider, but this time by explicitly specifying the maximum
+number of tokens. Specifying a value of 1 means that the model should behave
+deterministically.
+
+#### Experiment with model parameters
+
+[Section titled “Experiment with model parameters”](#experiment-with-model-parameters)
+
+You can experiment with the effect of these parameters on the output generated
+by different model and prompt combinations by using the Developer UI. Start the
+developer UI with the `genkit start` command and it will automatically load all
+of the models defined by the plugins configured in your project. You can quickly
+try different prompts and configuration values without having to repeatedly make
+these changes in code.
+
+#### Pair model with its config
+
+[Section titled “Pair model with its config”](#pair-model-with-its-config)
+
+Given that each provider or even a specific model may have its own configuration
+schema or warrant certain settings, it may be error prone to set separate
+options using `ai.WithModelName()` and `ai.WithConfig()` since the latter is not
+strongly typed to the former.
+
+To pair a model with its config, you can create a model reference that you can
+pass into the generate call instead:
+
+```
+model := googlegenai.GoogleAIModelRef("gemini-2.5-flash", &googlegenai.GeminiConfig{  MaxOutputTokens: 500,  StopSequences:   ["<end>", "<fin>"],  Temperature:     0.5,  TopP:            0.4,  TopK:            50,})
+resp, err := genkit.Generate(ctx, g,  ai.WithModel(model),  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),)if err != nil {  log.Fatal(err)}
+```
+
+The constructor for the model reference will enforce that the correct config
+type is provided which may reduce mismatches.
+
+### Structured output
+
+[Section titled “Structured output”](#structured-output)
+
+When using generative AI as a component in your application, you often want
+output in a format other than plain text. Even if you’re just generating content
+to display to the user, you can benefit from structured output simply for the
+purpose of presenting it more attractively to the user. But for more advanced
+applications of generative AI, such as programmatic use of the model’s output,
+or feeding the output of one model into another, structured output is a must.
+
+In Genkit, you can request structured output from a model by specifying an
+output type when you call `genkit.Generate()`:
+
+```
+type MenuItem struct {  Name        string   `json:"name"`  Description string   `json:"description"`  Calories    int      `json:"calories"`  Allergens   []string `json:"allergens"`}
+resp, err := genkit.Generate(ctx, g,  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),  ai.WithOutputType(MenuItem{}),)if err != nil {  log.Fatal(err) // One possible error is that the response does not conform to the type.}
+```
+
+Model output types are specified as JSON schema using the
+[`invopop/jsonschema`](https://github.com/invopop/jsonschema) package. This
+provides runtime type checking, which bridges the gap between static Go types
+and the unpredictable output of generative AI models. This system lets you write
+code that can rely on the fact that a successful generate call will always
+return output that conforms to your Go types.
+
+When you specify an output type in `genkit.Generate()`, Genkit does several
+things behind the scenes:
+
+- Augments the prompt with additional guidance about the selected output
+format. This also has the side effect of specifying to the model what
+content exactly you want to generate (for example, not only suggest a menu
+item but also generate a description, a list of allergens, and so on).
+- Verifies that the output conforms to the schema.
+- Marshals the model output into a Go type.
+
+To get structured output from a successful generate call, call `Output()` on the
+model response with an empty value of the type:
+
+```
+var item MenuItemif err := resp.Output(&item); err != nil {  log.Fatalf(err)}
+log.Printf("%s (%d calories, %d allergens): %s\n",  item.Name, item.Calories, len(item.Allergens), item.Description)
+```
+
+Alternatively, you can use `genkit.GenerateData()` for a more succinct call:
+
+```
+item, resp, err := genkit.GenerateData[MenuItem](ctx, g,  ai.WithPrompt("Invent a menu item for a pirate themed restaurant."),)if err != nil {  log.Fatal(err)}
+log.Printf("%s (%d calories, %d allergens): %s\n",  item.Name, item.Calories, len(item.Allergens), item.Description)
+```
+
+This function requires the output type parameter but automatically sets the
+`ai.WithOutputType()` option and calls `ModelResponse.Output()` before returning
+the value.
+
+#### Handling errors
+
+[Section titled “Handling errors”](#handling-errors)
+
+Note in the prior example that the `genkit.Generate()` call can result in an
+error. One possible error can happen when the model fails to generate output
+that conforms to the schema. The best strategy for dealing with such errors will
+depend on your exact use case, but here are some general hints:
+
+- **Try a different model**. For structured output to succeed, the model must
+be capable of generating output in JSON. The most powerful LLMs like Gemini
+are versatile enough to do this; however, smaller models, such as some of
+the local models you would use with Ollama, might not be able to generate
+structured output reliably unless they have been specifically trained to do
+so.
+- **Simplify the schema**. LLMs may have trouble generating complex or deeply
+nested types. Try using clear names, fewer fields, or a flattened structure
+if you are not able to reliably generate structured data.
+- **Retry the `genkit.Generate()` call**. If the model you’ve chosen only
+rarely fails to generate conformant output, you can treat the error as you
+would treat a network error, and retry the request using some kind of
+incremental back-off strategy.
+
+### Streaming
+
+[Section titled “Streaming”](#streaming)
+
+When generating large amounts of text, you can improve the experience for your
+users by presenting the output as it’s generated—streaming the output. A
+familiar example of streaming in action can be seen in most LLM chat apps: users
+can read the model’s response to their message as it’s being generated, which
+improves the perceived responsiveness of the application and enhances the
+illusion of chatting with an intelligent counterpart.
+
+In Genkit, you can stream output using the `ai.WithStreaming()` option:
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithPrompt("Suggest a complete menu for a pirate themed restaurant."),  ai.WithStreaming(func(ctx context.Context, chunk *ai.ModelResponseChunk) error {    // Do something with the chunk...    log.Println(chunk.Text())    return nil  }),)if err != nil {  log.Fatal(err)}
+log.Println(resp.Text())
+```
+
+### Multimodal input
+
+[Section titled “Multimodal input”](#multimodal-input)
+
+The examples you’ve seen so far have used text strings as model prompts. While
+this remains the most common way to prompt generative AI models, many models can
+also accept other media as prompts. Media prompts are most often used in
+conjunction with text prompts that instruct the model to perform some operation
+on the media, such as to caption an image or transcribe an audio recording.
+
+The ability to accept media input and the types of media you can use are
+completely dependent on the model and its API. For example, the Gemini 2.0
+series of models can accept images, video, and audio as prompts.
+
+To provide a media prompt to a model that supports it, instead of passing a
+simple text prompt to `genkit.Generate()`, pass an array consisting of a media
+part and a text part. This example specifies an image using a
+publicly-accessible HTTPS URL.
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithModelName("googleai/gemini-2.5-flash"),  ai.WithMessages(    NewUserMessage(      NewMediaPart("image/jpeg", "https://example.com/photo.jpg"),      NewTextPart("Compose a poem about this image."),    ),  ),)
+```
+
+You can also pass media data directly by encoding it as a data URL. For
+example:
+
+```
+image, err := ioutil.ReadFile("photo.jpg")if err != nil {  log.Fatal(err)}
+resp, err := genkit.Generate(ctx, g,  ai.WithModelName("googleai/gemini-2.5-flash"),  ai.WithMessages(    NewUserMessage(      NewMediaPart("image/jpeg", "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(image)),      NewTextPart("Compose a poem about this image."),    ),  ),)
+```
+
+All models that support media input support both data URLs and HTTPS URLs. Some
+model plugins add support for other media sources. For example, the Vertex AI
+plugin also lets you use Cloud Storage ( `gs://`) URLs.
+
+### Next steps
+
+[Section titled “Next steps”](#next-steps)
+
+#### Learn more about Genkit
+
+[Section titled “Learn more about Genkit”](#learn-more-about-genkit)
+
+- As an app developer, the primary way you influence the output of generative
+AI models is through prompting. Read
+[Managing prompts with Dotprompt](/go/docs/dotprompt) to learn
+how Genkit helps you develop effective prompts and manage them in your
+codebase.
+- Although `genkit.Generate()` is the nucleus of every generative AI powered
+application, real-world applications usually require additional work before
+and after invoking a generative AI model. To reflect this, Genkit introduces
+the concept of *flows*, which are defined like functions but add additional
+features such as observability and simplified deployment. To learn more, see
+[Defining AI workflows](/go/docs/flows).
+
+#### Advanced LLM use
+
+[Section titled “Advanced LLM use”](#advanced-llm-use)
+
+There are techniques your app can use to reap even more benefit from LLMs.
+
+- One way to enhance the capabilities of LLMs is to prompt them with a list of
+ways they can request more information from you, or request you to perform
+some action. This is known as *tool calling* or *function calling*. Models
+that are trained to support this capability can respond to a prompt with a
+specially-formatted response, which indicates to the calling application
+that it should perform some action and send the result back to the LLM along
+with the original prompt. Genkit has library functions that automate both
+the prompt generation and the call-response loop elements of a tool calling
+implementation. See [Tool calling](/go/docs/tool-calling) to learn more.
+- Retrieval-augmented generation (RAG) is a technique used to introduce
+domain-specific information into a model’s output. This is accomplished by
+inserting relevant information into a prompt before passing it on to the
+language model. A complete RAG implementation requires you to bring several
+technologies together: text embedding generation models, vector databases, and
+large language models. See [Retrieval-augmented generation (RAG)](/go/docs/rag) to
+learn how Genkit simplifies the process of coordinating these various
+elements.
+---
+# Defining AI workflows
+
+The core of your app’s AI features is generative model requests, but it’s rare
+that you can simply take user input, pass it to the model, and display the model
+output back to the user. Usually, there are pre- and post-processing steps that
+must accompany the model call. For example:
+
+- Retrieving contextual information to send with the model call.
+- Retrieving the history of the user’s current session, for example in a chat
+app.
+- Using one model to reformat the user input in a way that’s suitable to pass
+to another model.
+- Evaluating the “safety” of a model’s output before presenting it to the
+user.
+- Combining the output of several models.
+
+Every step of this workflow must work together for any AI-related task to
+succeed.
+
+In Genkit, you represent this tightly-linked logic using a construction called a
+flow. Flows are written just like functions, using ordinary Go code, but
+they add additional capabilities intended to ease the development of AI
+features:
+
+- **Type safety**: Input and output schemas, which provides both static and
+runtime type checking.
+- **Integration with developer UI**: Debug flows independently of your
+application code using the developer UI. In the developer UI, you can run
+flows and view traces for each step of the flow.
+- **Simplified deployment**: Deploy flows directly as web API endpoints, using
+any platform that can host a web app.
+
+Genkit’s flows are lightweight and unobtrusive, and don’t force your app to
+conform to any specific abstraction. All of the flow’s logic is written in
+standard Go, and code inside a flow doesn’t need to be flow-aware.
+
+## Defining and calling flows
+
+[Section titled “Defining and calling flows”](#defining-and-calling-flows)
+
+In its simplest form, a flow just wraps a function. The following example wraps
+a function that calls `genkit.Generate()`:
+
+```
+menuSuggestionFlow := genkit.DefineFlow(g, "menuSuggestionFlow",    func(ctx context.Context, theme string) (string, error) {        resp, err := genkit.Generate(ctx, g,            ai.WithPrompt("Invent a menu item for a %s themed restaurant.", theme),        )        if err != nil {            return "", err        }
+        return resp.Text(), nil    })
+```
+
+Just by wrapping your `genkit.Generate()` calls like this, you add some
+functionality: Doing so lets you run the flow from the Genkit CLI and from the
+developer UI, and is a requirement for several of Genkit’s features,
+including deployment and observability (later sections discuss these topics).
+
+### Input and output schemas
+
+[Section titled “Input and output schemas”](#input-and-output-schemas)
+
+One of the most important advantages Genkit flows have over directly calling a
+model API is type safety of both inputs and outputs. When defining flows, you
+can define schemas, in much the same way as you define the output schema of a
+`genkit.Generate()` call; however, unlike with `genkit.Generate()`, you can also
+specify an input schema.
+
+Here’s a refinement of the last example, which defines a flow that takes a
+string as input and outputs an object:
+
+```
+type MenuItem struct {    Name        string `json:"name"`    Description string `json:"description"`}
+menuSuggestionFlow := genkit.DefineFlow(g, "menuSuggestionFlow",    func(ctx context.Context, theme string) (MenuItem, error) {        return genkit.GenerateData[MenuItem](ctx, g,            ai.WithPrompt("Invent a menu item for a %s themed restaurant.", theme),        )    })
+```
+
+Note that the schema of a flow does not necessarily have to line up with the
+schema of the `genkit.Generate()` calls within the flow (in fact, a flow might
+not even contain `genkit.Generate()` calls). Here’s a variation of the example
+that calls `genkit.GenerateData()`, but uses the structured
+output to format a simple string, which the flow returns. Note how we pass
+`MenuItem` as a type parameter; this is the equivalent of passing the
+`WithOutputType()` option and getting a value of that type in response.
+
+```
+type MenuItem struct {    Name        string `json:"name"`    Description string `json:"description"`}
+menuSuggestionMarkdownFlow := genkit.DefineFlow(g, "menuSuggestionMarkdownFlow",    func(ctx context.Context, theme string) (string, error) {        item, _, err := genkit.GenerateData[MenuItem](ctx, g,            ai.WithPrompt("Invent a menu item for a %s themed restaurant.", theme),        )        if err != nil {            return "", err        }
+        return fmt.Sprintf("**%s**: %s", item.Name, item.Description), nil    })
+```
+
+### Calling flows
+
+[Section titled “Calling flows”](#calling-flows)
+
+Once you’ve defined a flow, you can call it from your Go code:
+
+```
+item, err := menuSuggestionFlow.Run(context.Background(), "bistro")
+```
+
+The argument to the flow must conform to the input schema.
+
+If you defined an output schema, the flow response will conform to it. For
+example, if you set the output schema to `MenuItem`, the flow output will
+contain its properties:
+
+```
+item, err := menuSuggestionFlow.Run(context.Background(), "bistro")if err != nil {    log.Fatal(err)}
+log.Println(item.Name)log.Println(item.Description)
+```
+
+## Streaming flows
+
+[Section titled “Streaming flows”](#streaming-flows)
+
+Flows support streaming using an interface similar to `genkit.Generate()` ’s
+streaming interface. Streaming is useful when your flow generates a large
+amount of output, because you can present the output to the user as it’s being
+generated, which improves the perceived responsiveness of your app. As a
+familiar example, chat-based LLM interfaces often stream their responses to the
+user as they are generated.
+
+Here’s an example of a flow that supports streaming:
+
+```
+type Menu struct {    Theme  string     `json:"theme"`    Items  []MenuItem `json:"items"`}
+type MenuItem struct {    Name        string `json:"name"`    Description string `json:"description"`}
+menuSuggestionFlow := genkit.DefineStreamingFlow(g, "menuSuggestionFlow",    func(ctx context.Context, theme string, callback core.StreamCallback[string]) (Menu, error) {        item, _, err := genkit.GenerateData[MenuItem](ctx, g,            ai.WithPrompt("Invent a menu item for a %s themed restaurant.", theme),            ai.WithStreaming(func(ctx context.Context, chunk *ai.ModelResponseChunk) error {                // Here, you could process the chunk in some way before sending it to                // the output stream using StreamCallback. In this example, we output                // the text of the chunk, unmodified.                return callback(ctx, chunk.Text())            }),        )        if err != nil {            return nil, err        }
+        return Menu{            Theme: theme,            Items: []MenuItem{item},        }, nil    })
+```
+
+The `string` type in `StreamCallback[string]` specifies the type of
+values your flow streams. This does not necessarily need to be the same
+type as the return type, which is the type of the flow’s complete output
+( `Menu` in this example).
+
+In this example, the values streamed by the flow are directly coupled to
+the values streamed by the `genkit.Generate()` call inside the flow.
+Although this is often the case, it doesn’t have to be: you can output values
+to the stream using the callback as often as is useful for your flow.
+
+### Calling streaming flows
+
+[Section titled “Calling streaming flows”](#calling-streaming-flows)
+
+Streaming flows can be run like non-streaming flows with
+`menuSuggestionFlow.Run(ctx, "bistro")` or they can be streamed:
+
+```
+streamCh, err := menuSuggestionFlow.Stream(context.Background(), "bistro")if err != nil {    log.Fatal(err)}
+for result := range streamCh {    if result.Err != nil {        log.Fatal("Stream error: %v", result.Err)    }    if result.Done {        log.Printf("Menu with %s theme:\n", result.Output.Theme)        for item := range result.Output.Items {            log.Println(" - %s: %s", item.Name, item.Description)        }    } else {        log.Println("Stream chunk:", result.Stream)    }}
+```
+
+## Running flows from the command line
+
+[Section titled “Running flows from the command line”](#running-flows-from-the-command-line)
+
+You can run flows from the command line using the Genkit CLI tool:
+
+Terminal window ```
+genkit flow:run menuSuggestionFlow '"French"'
+```
+
+For streaming flows, you can print the streaming output to the console by adding
+the `-s` flag:
+
+Terminal window ```
+genkit flow:run menuSuggestionFlow '"French"' -s
+```
+
+Running a flow from the command line is useful for testing a flow, or for
+running flows that perform tasks needed on an ad hoc basis—for example, to
+run a flow that ingests a document into your vector database.
+
+## Debugging flows
+
+[Section titled “Debugging flows”](#debugging-flows)
+
+One of the advantages of encapsulating AI logic within a flow is that you can
+test and debug the flow independently from your app using the Genkit developer
+UI.
+
+The developer UI relies on the Go app continuing to run, even if the logic has
+completed. If you are just getting started and Genkit is not part of a broader
+app, add `select {}` as the last line of `main()` to prevent the app from
+shutting down so that you can inspect it in the UI.
+
+To start the developer UI, run the following command from your project
+directory:
+
+Terminal window ```
+genkit start -- go run .
+```
+
+From the **Run** tab of developer UI, you can run any of the flows defined in
+your project:
+
+![Screenshot of the Flow runner](/_astro/devui-flows.CU7lon_X_Z1bEbxA.webp)
+
+After you’ve run a flow, you can inspect a trace of the flow invocation by
+either clicking **View trace** or looking at the **Inspect** tab.
+
+## Deploying flows
+
+[Section titled “Deploying flows”](#deploying-flows)
+
+You can deploy your flows directly as web API endpoints, ready for you to call
+from your app clients. Deployment is discussed in detail on several other pages,
+but this section gives brief overviews of your deployment options.
+
+### `net/http` Server
+
+[Section titled “net/http Server”](#nethttp-server)
+
+To deploy a flow using any Go hosting platform, such as Cloud Run, define
+your flow using `genkit.DefineFlow()` and start a `net/http` server with the
+provided flow handler using `genkit.Handler()`:
+
+```
+package main
+import (  "context"  "log"  "net/http"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit"  "github.com/firebase/genkit/go/plugins/googlegenai"  "github.com/firebase/genkit/go/plugins/server")
+type MenuItem struct {  Name        string `json:"name"`  Description string `json:"description"`}
+func main() {  ctx := context.Background()
+  g, err := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{}))  if err != nil {    log.Fatal(err)  }
+  menuSuggestionFlow := genkit.DefineFlow(g, "menuSuggestionFlow",    func(ctx context.Context, theme string) (MenuItem, error) {      item, _, err := genkit.GenerateData[MenuItem](ctx, g,        ai.WithPrompt("Invent a menu item for a %s themed restaurant.", theme),      )      return item, err    })
+  mux := http.NewServeMux()  mux.HandleFunc("POST /menuSuggestionFlow", genkit.Handler(menuSuggestionFlow))  log.Fatal(server.Start(ctx, "127.0.0.1:3400", mux))}
+```
+
+`server.Start()` is an optional helper function that starts the server and
+manages its lifecycle, including capturing interrupt signals to ease local
+development, but you may use your own method.
+
+To serve all the flows defined in your codebase, you can use
+`genkit.ListFlows()`:
+
+```
+mux := http.NewServeMux()for _, flow := range genkit.ListFlows(g) {    mux.HandleFunc("POST /"+flow.Name(), genkit.Handler(flow))}log.Fatal(server.Start(ctx, "127.0.0.1:3400", mux))
+```
+
+You can call a flow endpoint with a POST request as follows:
+
+Terminal window ```
+curl -X POST "http://localhost:3400/menuSuggestionFlow" \    -H "Content-Type: application/json" -d '{"data": "banana"}'
+```
+
+### Other server frameworks
+
+[Section titled “Other server frameworks”](#other-server-frameworks)
+
+You can also use other server frameworks to deploy your flows. For
+example, you can use [Gin](https://gin-gonic.com/) with just a few lines:
+
+```
+router := gin.Default()for _, flow := range genkit.ListFlows(g) {    router.POST("/"+flow.Name(), func(c *gin.Context) {        genkit.Handler(flow)(c.Writer, c.Request)    })}log.Fatal(router.Run(":3400"))
+```
+
+For information on deploying to specific platforms, see
+[Genkit with Cloud Run](/go/docs/cloud-run).
+---
+# Managing prompts with Dotprompt
+
+Prompt engineering is the primary way that you, as an app developer, influence
+the output of generative AI models. For example, when using LLMs, you can craft
+prompts that influence the tone, format, length, and other characteristics of
+the models’ responses.
+
+The way you write these prompts will depend on the model you’re using; a prompt
+written for one model might not perform well when used with another model.
+Similarly, the model parameters you set (temperature, top-k, and so on) will
+also affect output differently depending on the model.
+
+Getting all three of these factors—the model, the model parameters, and
+the prompt—working together to produce the output you want is rarely a
+trivial process and often involves substantial iteration and experimentation.
+Genkit provides a library and file format called Dotprompt, that aims to make
+this iteration faster and more convenient.
+
+[Dotprompt](https://github.com/google/dotprompt) is designed around the premise
+that **prompts are code**. You define your prompts along with the models and
+model parameters they’re intended for separately from your application code.
+Then, you (or, perhaps someone not even involved with writing application code)
+can rapidly iterate on the prompts and model parameters using the Genkit
+Developer UI. Once your prompts are working the way you want, you can import
+them into your application and run them using Genkit.
+
+Your prompt definitions each go in a file with a `.prompt` extension. Here’s an
+example of what these files look like:
+
+```
+---model: googleai/gemini-1.5-flashconfig:  temperature: 0.9input:  schema:    location: string    style?: string    name?: string  default:    location: a restaurant---
+You are the world's most welcoming AI assistant and are currently working at {{location}}.
+Greet a guest{{#if name}} named {{name}}{{/if}}{{#if style}} in the style of {{style}}{{/if}}.
+```
+
+The portion in the triple-dashes is YAML front matter, similar to the front
+matter format used by GitHub Markdown and Jekyll; the rest of the file is the
+prompt, which can optionally use
+[Handlebars](https://handlebarsjs.com/guide/) templates. The
+following sections will go into more detail about each of the parts that make a
+`.prompt` file and how to use them.
+
+## Before you begin
+
+[Section titled “Before you begin”](#before-you-begin)
+
+Before reading this page, you should be familiar with the content covered on the
+[Generating content with AI models](/go/docs/models) page.
+
+If you want to run the code examples on this page, first complete the steps in
+the [Get started](/go/docs/get-started-go) guide. All of the examples assume that you
+have already installed Genkit as a dependency in your project.
+
+## Creating prompt files
+
+[Section titled “Creating prompt files”](#creating-prompt-files)
+
+Although Dotprompt provides several [different ways](#defining-prompts-in-code) to create
+and load prompts, it’s optimized for projects that organize their prompts as
+`.prompt` files within a single directory (or subdirectories thereof). This
+section shows you how to create and load prompts using this recommended setup.
+
+### Creating a prompt directory
+
+[Section titled “Creating a prompt directory”](#creating-a-prompt-directory)
+
+The Dotprompt library expects to find your prompts in a directory at your
+project root and automatically loads any prompts it finds there. By default,
+this directory is named `prompts`. For example, using the default directory
+name, your project structure might look something like this:
+
+```
+your-project/├── prompts/│   └── hello.prompt├── main.go├── go.mod└── go.sum
+```
+
+If you want to use a different directory, you can specify it when you configure
+Genkit:
+
+```
+g, err := genkit.Init(ctx.Background(), ai.WithPromptDir("./llm_prompts"))
+```
+
+### Creating a prompt file
+
+[Section titled “Creating a prompt file”](#creating-a-prompt-file)
+
+There are two ways to create a `.prompt` file: using a text editor, or with the
+developer UI.
+
+#### Using a text editor
+
+[Section titled “Using a text editor”](#using-a-text-editor)
+
+If you want to create a prompt file using a text editor, create a text file with
+the `.prompt` extension in your prompts directory: for example,
+`prompts/hello.prompt`.
+
+Here is a minimal example of a prompt file:
+
+```
+---model: vertexai/gemini-1.5-flash---You are the world's most welcoming AI assistant. Greet the user and offer yourassistance.
+```
+
+The portion in the dashes is YAML front matter, similar to the front matter
+format used by GitHub Markdown and Jekyll; the rest of the file is the prompt,
+which can optionally use Handlebars templates. The front matter section is
+optional, but most prompt files will at least contain metadata specifying a
+model. The remainder of this page shows you how to go beyond this, and make use
+of Dotprompt’s features in your prompt files.
+
+#### Using the developer UI
+
+[Section titled “Using the developer UI”](#using-the-developer-ui)
+
+You can also create a prompt file using the model runner in the developer UI.
+Start with application code that imports the Genkit library and configures it to
+use the model plugin you’re interested in. For example:
+
+```
+package main
+import (  "context"  "log"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit"  "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {  g, err := genkit.Init(context.Background(), genkit.WithPlugins(&googlegenai.GoogleAI{}))  if err != nil {    log.Fatal(err)  }
+  // Blocks end of program execution to use the developer UI.  select {}}
+```
+
+Load the developer UI in the same project:
+
+Terminal window ```
+genkit start -- go run .
+```
+
+In the **Model** section, choose the model you want to use from the list of
+models provided by the plugin.
+
+![Genkit developer UI model runner](/_astro/developer_ui_model_runner.cHO4a-_l_Z1Vv7kN.webp)
+
+Then, experiment with the prompt and configuration until you get results you’re
+happy with. When you’re ready, press the Export button and save the file to your
+prompts directory.
+
+## Running prompts
+
+[Section titled “Running prompts”](#running-prompts)
+
+After you’ve created prompt files, you can run them from your application code,
+or using the tooling provided by Genkit. Regardless of how you want to run your
+prompts, first start with application code that imports the Genkit library and
+the model plugins you’re interested in. For example:
+
+```
+package main
+import (  "context"  "log"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit"  "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {  g, err := genkit.Init(context.Background(), genkit.WithPlugins(&googlegenai.GoogleAI{}))  if err != nil {    log.Fatal(err)  }
+  // Blocks end of program execution to use the developer UI.  select {}}
+```
+
+If you’re storing your prompts in a directory other than the default, be sure to
+specify it when you configure Genkit.
+
+### Run prompts from code
+
+[Section titled “Run prompts from code”](#run-prompts-from-code)
+
+To use a prompt, first load it using the `genkit.LookupPrompt()` function:
+
+```
+helloPrompt := genkit.LookupPrompt(g, "hello")
+```
+
+An executable prompt has similar options to that of `genkit.Generate()` and many
+of them are overridable at execution time, including things like input (see the
+section about [specifying input schemas](#input-and-output-schemas)), configuration, and more:
+
+```
+resp, err := helloPrompt.Execute(context.Background(),  ai.WithModelName("googleai/gemini-2.5-flash"),  ai.WithInput(map[string]any{"name": "John"}),  ai.WithConfig(&googlegenai.GeminiConfig{Temperature: 0.5}))
+```
+
+Any parameters you pass to the prompt call will override the same parameters
+specified in the prompt file.
+
+See [Generate content with AI models](/go/docs/models) for descriptions of the available
+options.
+
+### Using the developer UI
+
+[Section titled “Using the developer UI”](#using-the-developer-ui-1)
+
+As you’re refining your app’s prompts, you can run them in the Genkit developer
+UI to quickly iterate on prompts and model configurations, independently from
+your application code.
+
+Load the developer UI from your project directory:
+
+Terminal window ```
+genkit start -- go run .
+```
+
+![Genkit developer UI prompt runner](/_astro/prompts-in-developer-ui.LmFDtByL_ZBrbGw.webp)
+
+Once you’ve loaded prompts into the developer UI, you can run them with
+different input values, and experiment with how changes to the prompt wording or
+the configuration parameters affect the model output. When you’re happy with the
+result, you can click the **Export prompt** button to save the modified prompt
+back into your project directory.
+
+## Model configuration
+
+[Section titled “Model configuration”](#model-configuration)
+
+In the front matter block of your prompt files, you can optionally specify model
+configuration values for your prompt:
+
+```
+---model: googleai/gemini-2.5-flashconfig:  temperature: 1.4  topK: 50  topP: 0.4  maxOutputTokens: 400  stopSequences:    - '<end>'    - '<fin>'---
+```
+
+These values map directly to the `WithConfig()` option accepted by the
+executable prompt:
+
+```
+resp, err := helloPrompt.Execute(context.Background(),    ai.WithConfig(&googlegenai.GeminiConfig{        Temperature:     1.4,        TopK:            50,        TopP:            0.4,        MaxOutputTokens: 400,        StopSequences:   []string{"<end>", "<fin>"},    }))
+```
+
+See [Generate content with AI models](/go/docs/models) for descriptions of the available
+options.
+
+## Input and output schemas
+
+[Section titled “Input and output schemas”](#input-and-output-schemas)
+
+You can specify input and output schemas for your prompt by defining them in the
+front matter section. These schemas are used in much the same way as those
+passed to a `genkit.Generate()` request or a flow definition:
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    theme?: string  default:    theme: "pirate"output:  schema:    dishname: string    description: string    calories: integer    allergens(array): string---Invent a menu item for a {{theme}} themedrestaurant.
+```
+
+This code produces the following structured output:
+
+```
+package main
+import (  "context"  "log"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit"  "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {  ctx := context.Background()  g, err := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{}))  if err != nil {    log.Fatal(err)  }
+  menuPrompt := genkit.LookupPrompt(g, "menu")  if menuPrompt == nil {    log.Fatal("no prompt named 'menu' found")  }
+  resp, err := menuPrompt.Execute(ctx,    ai.WithInput(map[string]any{"theme": "medieval"}),  )  if err != nil {    log.Fatal(err)  }
+  var output map[string]any  if err := resp.Output(&output); err != nil {    log.Fatal(err)  }
+  log.Println(output["dishname"])  log.Println(output["description"])
+  // Blocks end of program execution to use the developer UI.  select {}}
+```
+
+You have several options for defining schemas in a `.prompt` file: Dotprompt’s
+own schema definition format, Picoschema; standard JSON Schema; or, as
+references to schemas defined in your application code. The following sections
+describe each of these options in more detail.
+
+### Picoschema
+
+[Section titled “Picoschema”](#picoschema)
+
+The schemas in the example above are defined in a format called Picoschema.
+Picoschema is a compact, YAML-optimized schema definition format that simplifies
+defining the most important attributes of a schema for LLM usage. Here’s a
+longer example of a schema, which specifies the information an app might store
+about an article:
+
+```
+schema:  title: string # string, number, and boolean types are defined like this  subtitle?: string # optional fields are marked with a `?`  draft?: boolean, true when in draft state  status?(enum, approval status): [PENDING, APPROVED]  date: string, the date of publication e.g. '2024-04-09' # descriptions follow a comma  tags(array, relevant tags for article): string # arrays are denoted via parentheses  authors(array):    name: string    email?: string  metadata?(object): # objects are also denoted via parentheses    updatedAt?: string, ISO timestamp of last update    approvedBy?: integer, id of approver  extra?: any, arbitrary extra data  (*): string, wildcard field
+```
+
+The above schema is equivalent to the following Go type:
+
+```
+type Article struct {  Title    string   `json:"title"`  Subtitle string   `json:"subtitle,omitempty" jsonschema:"required=false"`  Draft    bool     `json:"draft,omitempty"`  // True when in draft state  Status   string   `json:"status,omitempty" jsonschema:"enum=PENDING,enum=APPROVED"` // Approval status  Date     string   `json:"date"`   // The date of publication e.g. '2025-04-07'  Tags     []string `json:"tags"`   // Relevant tags for article  Authors  []struct {    Name  string `json:"name"`    Email string `json:"email,omitempty"`  } `json:"authors"`  Metadata struct {    UpdatedAt  string `json:"updatedAt,omitempty"`  // ISO timestamp of last update    ApprovedBy int    `json:"approvedBy,omitempty"` // ID of approver  } `json:"metadata,omitempty"`  Extra any `json:"extra"` // Arbitrary extra data}
+```
+
+Picoschema supports scalar types `string`, `integer`, `number`, `boolean`, and
+`any`. Objects, arrays, and enums are denoted by a parenthetical after the field
+name.
+
+Objects defined by Picoschema have all properties required unless denoted
+optional by `?`, and don’t allow additional properties. When a property is
+marked as optional, it is also made nullable to provide more leniency for LLMs
+to return null instead of omitting a field.
+
+In an object definition, the special key `(*)` can be used to declare a
+“wildcard” field definition. This will match any additional properties not
+supplied by an explicit key.
+
+### JSON Schema
+
+[Section titled “JSON Schema”](#json-schema)
+
+Picoschema does not support many of the capabilities of full JSON schema. If you
+require more robust schemas, you may supply a JSON Schema instead:
+
+```
+output:  schema:    type: object    properties:      field1:        type: number        minimum: 20
+```
+
+{# TODO: Talk about defining schemas in code to reference in .prompt file once implemented. #}
+
+## Prompt templates
+
+[Section titled “Prompt templates”](#prompt-templates)
+
+The portion of a `.prompt` file that follows the front matter (if present) is
+the prompt itself, which will be passed to the model. While this prompt could be
+a simple text string, very often you will want to incorporate user input into
+the prompt. To do so, you can specify your prompt using the
+[Handlebars](https://handlebarsjs.com/guide/) templating language.
+Prompt templates can include placeholders that refer to the values defined by
+your prompt’s input schema.
+
+You already saw this in action in the section on input and output schemas:
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    theme?: string  default:    theme: "pirate"output:  schema:    dishname: string    description: string    calories: integer    allergens(array): string---Invent a menu item for a {{theme}} themed restaurant.
+```
+
+In this example, the Handlebars expression, `{{theme}}`, resolves to the value of the input’s `theme` property when you
+run the prompt. To pass input to the prompt, call the prompt as in the following
+example:
+
+```
+menuPrompt = genkit.LookupPrompt(g, "menu")
+resp, err := menuPrompt.Execute(context.Background(),    ai.WithInput(map[string]any{"theme": "medieval"}),)
+```
+
+Note that because the input schema declared the `theme` property to be optional
+and provided a default, you could have omitted the property, and the prompt
+would have resolved using the default value.
+
+Handlebars templates also support some limited logical constructs. For example,
+as an alternative to providing a default, you could define the prompt using
+Handlebars’s `#if` helper:
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    theme?: string---Invent a menu item for a {{#if theme}}{{theme}}{{else}}themed{{/if}} restaurant.
+```
+
+In this example, the prompt renders as “Invent a menu item for a restaurant”
+when the `theme` property is unspecified.
+
+See the [Handlebars documentation](https://handlebarsjs.com/guide/builtin-helpers.html)
+for information on all of the built-in logical helpers.
+
+In addition to properties defined by your input schema, your templates can also
+refer to values automatically defined by Genkit. The next few sections describe
+these automatically-defined values and how you can use them.
+
+### Multi-message prompts
+
+[Section titled “Multi-message prompts”](#multi-message-prompts)
+
+By default, Dotprompt constructs a single message with a “user” role.
+However, some prompts, such as a system prompt, are best expressed as
+combinations of multiple messages.
+
+The `{{role}}` helper provides a straightforward way to construct multi-message prompts:
+
+```
+---model: vertexai/gemini-2.5-flashinput:  schema:    userQuestion: string---{{role "system"}}You are a helpful AI assistant that really loves to talk about food. Try to workfood items into all of your conversations.
+{{role "user"}}{{userQuestion}}
+```
+
+### Multi-modal prompts
+
+[Section titled “Multi-modal prompts”](#multi-modal-prompts)
+
+For models that support multimodal input, such as images alongside text, you can
+use the `{{media}}` helper:
+
+```
+---model: vertexai/gemini-2.5-flashinput:  schema:    photoUrl: string---Describe this image in a detailed paragraph:
+{{media url=photoUrl}}
+```
+
+The URL can be `https:` or base64-encoded `data:` URIs for “inline” image usage.
+In code, this would be:
+
+```
+multimodalPrompt = genkit.LookupPrompt(g, "multimodal")
+resp, err := multimodalPrompt.Execute(context.Background(),    ai.WithInput(map[string]any{"photoUrl": "https://example.com/photo.jpg"}),)
+```
+
+See also [Multimodal input](/go/docs/models#multimodal-input), on the
+[Generating content with AI models](/go/docs/models) page, for an
+example of constructing a `data:` URL.
+
+### Partials
+
+[Section titled “Partials”](#partials)
+
+Partials are reusable templates that can be included inside any prompt. Partials
+can be especially helpful for related prompts that share common behavior.
+
+When loading a prompt directory, any file prefixed with an underscore ( `_`) is
+considered a partial. So a file `_personality.prompt` might contain:
+
+```
+You should speak like a {{#if style}}{{style}}{{else}}helpful assistant.{{/if}}.
+```
+
+This can then be included in other prompts:
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    name: string    style?: string---{{ role "system" }}{{>personality style=style}}
+{{ role "user" }}Give the user a friendly greeting.
+User's Name: {{name}}
+```
+
+Partials are inserted using the `{{>NAME_OF_PARTIAL args...}}` syntax. If no arguments are provided to the partial, it executes
+with the same context as the parent prompt.
+
+Partials accept named arguments or a single positional argument
+representing the context. This can be helpful for tasks such as rendering
+members of a list.
+
+**\_destination.prompt**
+
+```
+-   {{name}} ({{country}})
+```
+
+**chooseDestination.prompt**
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    destinations(array):      name: string      country: string---Help the user decide between these vacation destinations:
+{{#each destinations}}{{>destination this}}{{/each}}
+```
+
+#### Defining partials in code
+
+[Section titled “Defining partials in code”](#defining-partials-in-code)
+
+You can also define partials in code using `genkit.DefinePartial()`:
+
+```
+genkit.DefinePartial(g, "personality", "Talk like a {% verbatim %}{{#if style}}{{style}}{{else}}{% endverbatim %}helpful assistant{% verbatim %}{{/if}}{% endverbatim %}.")
+```
+
+Code-defined partials are available in all prompts.
+
+### Defining Custom Helpers
+
+[Section titled “Defining Custom Helpers”](#defining-custom-helpers)
+
+You can define custom helpers to process and manage data inside of a prompt.
+Helpers are registered globally using `genkit.DefineHelper()`:
+
+```
+genkit.DefineHelper(g, "shout", func(input string) string {    return strings.ToUpper(input)})
+```
+
+Once a helper is defined you can use it in any prompt:
+
+```
+---model: googleai/gemini-2.5-flashinput:  schema:    name: string---
+HELLO, {{shout name}}!!!
+```
+
+## Prompt variants
+
+[Section titled “Prompt variants”](#prompt-variants)
+
+Because prompt files are just text, you can (and should!) commit them to your
+version control system, simplifying the process of comparing changes over time.
+Often, tweaked versions of prompts can only be fully tested in a
+production environment side-by-side with existing versions. Dotprompt supports
+this through its variants feature.
+
+To create a variant, create a `[name].[variant].prompt` file. For example, if
+you were using Gemini 2.0 Flash in your prompt but wanted to see if Gemini 2.5
+Pro would perform better, you might create two files:
+
+- `myPrompt.prompt`: the “baseline” prompt
+- `myPrompt.gemini25pro.prompt`: a variant named `gemini25pro`
+
+To use a prompt variant, specify the variant option when loading:
+
+```
+myPrompt := genkit.LookupPrompt(g, "myPrompt.gemini25Pro")
+```
+
+The name of the variant is included in the metadata of generation traces, so you
+can compare and contrast actual performance between variants in the Genkit trace
+inspector.
+
+## Defining prompts in code
+
+[Section titled “Defining prompts in code”](#defining-prompts-in-code)
+
+All of the examples discussed so far have assumed that your prompts are defined
+in individual `.prompt` files in a single directory (or subdirectories thereof),
+accessible to your app at runtime. Dotprompt is designed around this setup, and
+its authors consider it to be the best developer experience overall.
+
+However, if you have use cases that are not well supported by this setup, you
+can also define prompts in code using the `genkit.DefinePrompt()` function:
+
+```
+type GeoQuery struct {    CountryCount int `json:"countryCount"`}
+type CountryList struct {    Countries []string `json:"countries"`}
+geographyPrompt, err := genkit.DefinePrompt(    g, "GeographyPrompt",    ai.WithSystem("You are a geography teacher. Respond only when the user asks about geography."),    ai.WithPrompt("Give me the {% verbatim %}{{countryCount}}{% endverbatim %} biggest countries in the world by inhabitants."),    ai.WithConfig(&googlegenai.GeminiConfig{Temperature: 0.5}),    ai.WithInputType(GeoQuery{CountryCount: 10}) // Defaults to 10.    ai.WithOutputType(CountryList{}),)if err != nil {    log.Fatal(err)}
+resp, err := geographyPrompt.Execute(context.Background(), ai.WithInput(GeoQuery{CountryCount: 15}))if err != nil {    log.Fatal(err)}
+var list CountryListif err := resp.Output(&list); err != nil {    log.Fatal(err)}
+log.Println("Countries: %s", list.Countries)
+```
+
+Prompts may also be rendered into a `GenerateActionOptions` which may then be
+processed and passed into `genkit.GenerateWithRequest()`:
+
+```
+actionOpts, err := geographyPrompt.Render(ctx, ai.WithInput(GeoQuery{CountryCount: 15}))if err != nil {    log.Fatal(err)}
+// Do something with the value...actionOpts.Config = &googlegenai.GeminiConfig{Temperature: 0.8}
+resp, err := genkit.GenerateWithRequest(ctx, g, actionOpts, nil, nil) // No middleware or streaming
+```
+
+Note that all prompt options carry over to `GenerateActionOptions` with the
+exception of `WithMiddleware()`, which must be passed separately if using
+`Prompt.Render()` instead of `Prompt.Execute()`.
+---
+# Tool calling
+
+*Tool calling*, also known as *function calling*, is a structured way to give
+LLMs the ability to make requests back to the application that called it. You
+define the tools you want to make available to the model, and the model will
+make tool requests to your app as necessary to fulfill the prompts you give it.
+
+The use cases of tool calling generally fall into a few themes:
+
+**Giving an LLM access to information it wasn’t trained with**
+
+- Frequently changing information, such as a stock price or the current
+weather.
+- Information specific to your app domain, such as product information or user
+profiles.
+
+Note the overlap with [retrieval augmented generation](/go/docs/rag) (RAG), which is also
+a way to let an LLM integrate factual information into its generations. RAG is a
+heavier solution that is most suited when you have a large amount of information
+or the information that’s most relevant to a prompt is ambiguous. On the other
+hand, if a function call or database lookup is all that’s necessary for
+retrieving the information the LLM needs, tool calling is more appropriate.
+
+**Introducing a degree of determinism into an LLM workflow**
+
+- Performing calculations that the LLM cannot reliably complete itself.
+- Forcing an LLM to generate verbatim text under certain circumstances, such
+as when responding to a question about an app’s terms of service.
+
+**Performing an action when initiated by an LLM**
+
+- Turning on and off lights in an LLM-powered home assistant
+- Reserving table reservations in an LLM-powered restaurant agent
+
+## Before you begin
+
+[Section titled “Before you begin”](#before-you-begin)
+
+If you want to run the code examples on this page, first complete the steps in
+the [Get started](/go/docs/get-started-go) guide. All of the examples assume that you
+have already set up a project with Genkit dependencies installed.
+
+This page discusses one of the advanced features of Genkit model abstraction, so
+before you dive too deeply, you should be familiar with the content on the
+[Generating content with AI models](/go/docs/models) page. You should also be familiar
+with Genkit’s system for defining input and output schemas, which is discussed
+on the [Flows](/go/docs/flows) page.
+
+## Overview of tool calling
+
+[Section titled “Overview of tool calling”](#overview-of-tool-calling)
+
+At a high level, this is what a typical tool-calling interaction with an LLM
+looks like:
+
+1. The calling application prompts the LLM with a request and also includes in
+the prompt a list of tools the LLM can use to generate a response.
+1. The LLM either generates a complete response or generates a tool call
+request in a specific format.
+1. If the caller receives a complete response, the request is fulfilled and the
+interaction ends; but if the caller receives a tool call, it performs
+whatever logic is appropriate and sends a new request to the LLM containing
+the original prompt or some variation of it as well as the result of the
+tool call.
+1. The LLM handles the new prompt as in Step 2.
+
+For this to work, several requirements must be met:
+
+- The model must be trained to make tool requests when it’s needed to complete
+a prompt. Most of the larger models provided through web APIs such as Gemini
+can do this, but smaller and more specialized models often cannot. Genkit
+will throw an error if you try to provide tools to a model that doesn’t
+support it.
+- The calling application must provide tool definitions to the model in the
+format it expects.
+- The calling application must prompt the model to generate tool calling
+requests in the format the application expects.
+
+## Tool calling with Genkit
+
+[Section titled “Tool calling with Genkit”](#tool-calling-with-genkit)
+
+Genkit provides a single interface for tool calling with models that support it.
+Each model plugin ensures that the last two criteria mentioned in the previous
+section are met, and the `genkit.Generate()` function automatically carries out
+the tool-calling loop described earlier.
+
+### Model support
+
+[Section titled “Model support”](#model-support)
+
+Tool calling support depends on the model, the model API, and the Genkit plugin.
+Consult the relevant documentation to determine if tool calling is likely to be
+supported. In addition:
+
+- Genkit will throw an error if you try to provide tools to a model that
+doesn’t support it.
+- If the plugin exports model references, the `ModelInfo.Supports.Tools`
+property will indicate if it supports tool calling.
+
+### Defining tools
+
+[Section titled “Defining tools”](#defining-tools)
+
+Use the `genkit.DefineTool()` function to write tool definitions:
+
+```
+package main
+import (  "context"  "fmt"  "log"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit"  "github.com/firebase/genkit/go/plugins/googlegenai")
+// Define the input structure for the tooltype WeatherInput struct {  Location string `json:"location" jsonschema_description:"Location to get weather for"`}
+func main() {  ctx := context.Background()
+  g, err := genkit.Init(ctx,    genkit.WithPlugins(&googlegenai.GoogleAI{}),    genkit.WithDefaultModel("googleai/gemini-1.5-flash"), // Updated model name  )  if err != nil {    log.Fatalf("Genkit initialization failed: %v", err)  }
+  genkit.DefineTool(    g, "getWeather", "Gets the current weather in a given location",    func(ctx context.Context, input WeatherInput) (string, error) {      // Here, we would typically make an API call or database query. For this      // example, we just return a fixed value.      log.Printf("Tool 'getWeather' called for location: %s", input.Location)      return fmt.Sprintf("The current weather in %s is 63°F and sunny.", input.Location), nil    })}
+```
+
+The syntax here looks just like the `genkit.DefineFlow()` syntax; however, you
+must write a description. Take special care with the wording and descriptiveness
+of the description as it is vital for the LLM to decide to use it appropriately.
+
+### Using tools
+
+[Section titled “Using tools”](#using-tools)
+
+Include defined tools in your prompts to generate content.
+
+**Using `genkit.Generate()`:**
+
+```
+resp, err := genkit.Generate(ctx, g,  ai.WithPrompt("What is the weather in San Francisco?"),  ai.WithTools(getWeatherTool),)
+```
+
+**Using `genkit.DefinePrompt()`:**
+
+```
+weatherPrompt, err := genkit.DefinePrompt(g, "weatherPrompt",  ai.WithPrompt("What is the weather in {% verbatim %}{{location}}{% endverbatim %}?"),  ai.WithTools(getWeatherTool),)if err != nil {  log.Fatal(err)}
+resp, err := weatherPrompt.Execute(ctx,  with.Input(map[string]any{"location": "San Francisco"}),)
+```
+
+**Using a `.prompt` file:**
+
+Create a file named `prompts/weatherPrompt.prompt` (assuming default prompt directory):
+
+```
+---system: "Answer questions using the tools you have."tools: [getWeather]input:  schema:    location: string---
+What is the weather in {{location}}?
+```
+
+Then execute it in your Go code:
+
+```
+// Assuming prompt file named weatherPrompt.prompt exists in ./prompts dir.weatherPrompt := genkit.LookupPrompt("weatherPrompt")if weatherPrompt == nil {  log.Fatal("no prompt named 'weatherPrompt' found")}
+resp, err := weatherPrompt.Execute(ctx,  ai.WithInput(map[string]any{"location": "San Francisco"}),)
+```
+
+Genkit will automatically handle the tool call if the LLM needs to use the
+`getWeather` tool to answer the prompt.
+
+### Explicitly handling tool calls
+
+[Section titled “Explicitly handling tool calls”](#explicitly-handling-tool-calls)
+
+If you want full control over this tool-calling loop, for example to apply more
+complicated logic, set the `WithReturnToolRequests()` option to `true`. Now it’s
+your responsibility to ensure all of the tool requests are fulfilled:
+
+```
+getWeatherTool := genkit.DefineTool(    g, "getWeather", "Gets the current weather in a given location",    func(ctx *ai.ToolContext, location struct {        Location string `jsonschema_description:"Location to get weather for"`    }) (string, error) {        // Tool implementation...        return "sunny", nil    },)
+resp, err := genkit.Generate(ctx, g,    ai.WithPrompt("What is the weather in San Francisco?"),    ai.WithTools(getWeatherTool),    ai.WithReturnToolRequests(true),)if err != nil {    log.Fatal(err)}
+parts := []*ai.Part{}for _, req := range resp.ToolRequests() {    tool := genkit.LookupTool(g, req.Name)    if tool == nil {        log.Fatalf("tool %q not found", req.Name)    }
+    output, err := tool.RunRaw(ctx, req.Input)    if err != nil {        log.Fatalf("tool %q execution failed: %v", tool.Name(), err)    }
+    parts = append(parts,        ai.NewToolResponsePart(&ai.ToolResponse{            Name:   req.Name,            Ref:    req.Ref,            Output: output,        }))}
+resp, err = genkit.Generate(ctx, g,    ai.WithMessages(append(resp.History(), ai.NewMessage(ai.RoleTool, nil, parts...))...),)if err != nil {    log.Fatal(err)}
+```
+---
+# Retrieval-augmented generation (RAG)
+
+Genkit provides abstractions that help you build retrieval-augmented generation
+(RAG) flows, as well as plugins that provide integrations with related tools.
+
+## What is RAG?
+
+[Section titled “What is RAG?”](#what-is-rag)
+
+Retrieval-augmented generation is a technique used to incorporate external
+sources of information into an LLM’s responses. It’s important to be able to do
+so because, while LLMs are typically trained on a broad body of
+material, practical use of LLMs often requires specific domain knowledge (for
+example, you might want to use an LLM to answer customers’ questions about your
+company’s products).
+
+One solution is to fine-tune the model using more specific data. However, this
+can be expensive both in terms of compute cost and in terms of the effort needed
+to prepare adequate training data.
+
+In contrast, RAG works by incorporating external data sources into a prompt at
+the time it’s passed to the model. For example, you could imagine the prompt,
+“What is Bart’s relationship to Lisa?” might be expanded (“augmented”) by
+prepending some relevant information, resulting in the prompt, “Homer and
+Marge’s children are named Bart, Lisa, and Maggie. What is Bart’s relationship
+to Lisa?”
+
+This approach has several advantages:
+
+- It can be more cost effective because you don’t have to retrain the model.
+- You can continuously update your data source and the LLM can immediately make
+use of the updated information.
+- You now have the potential to cite references in your LLM’s responses.
+
+On the other hand, using RAG naturally means longer prompts, and some LLM API
+services charge for each input token you send. Ultimately, you must evaluate the
+cost tradeoffs for your applications.
+
+RAG is a very broad area and there are many different techniques used to achieve
+the best quality RAG. The core Genkit framework offers two main abstractions to
+help you do RAG:
+
+- Indexers: add documents to an “index”.
+- Embedders: transforms documents into a vector representation
+- Retrievers: retrieve documents from an “index”, given a query.
+
+These definitions are broad on purpose because Genkit is un-opinionated about
+what an “index” is or how exactly documents are retrieved from it. Genkit only
+provides a `Document` format and everything else is defined by the retriever or
+indexer implementation provider.
+
+### Indexers
+
+[Section titled “Indexers”](#indexers)
+
+The index is responsible for keeping track of your documents in such a way that
+you can quickly retrieve relevant documents given a specific query. This is most
+often accomplished using a vector database, which indexes your documents using
+multidimensional vectors called embeddings. A text embedding (opaquely)
+represents the concepts expressed by a passage of text; these are generated
+using special-purpose ML models. By indexing text using its embedding, a vector
+database is able to cluster conceptually related text and retrieve documents
+related to a novel string of text (the query).
+
+Before you can retrieve documents for the purpose of generation, you need to
+ingest them into your document index. A typical ingestion flow does the
+following:
+
+1. Split up large documents into smaller documents so that only relevant
+portions are used to augment your prompts – “chunking”. This is necessary
+because many LLMs have a limited context window, making it impractical to
+include entire documents with a prompt.
+
+Genkit doesn’t provide built-in chunking libraries; however, there are open
+source libraries available that are compatible with Genkit.
+1. Generate embeddings for each chunk. Depending on the database you’re using,
+you might explicitly do this with an embedding generation model, or you
+might use the embedding generator provided by the database.
+1. Add the text chunk and its index to the database.
+
+You might run your ingestion flow infrequently or only once if you are working
+with a stable source of data. On the other hand, if you are working with data
+that frequently changes, you might continuously run the ingestion flow (for
+example, in a Cloud Firestore trigger, whenever a document is updated).
+
+### Embedders
+
+[Section titled “Embedders”](#embedders)
+
+An embedder is a function that takes content (text, images, audio, etc.) and
+creates a numeric vector that encodes the semantic meaning of the original
+content. As mentioned above, embedders are leveraged as part of the process of
+indexing. However, they can also be used independently to create embeddings
+without an index.
+
+### Retrievers
+
+[Section titled “Retrievers”](#retrievers)
+
+A retriever is a concept that encapsulates logic related to any kind of document
+retrieval. The most popular retrieval cases typically include retrieval from
+vector stores. However, in Genkit a retriever can be any function that returns
+data.
+
+To create a retriever, you can use one of the provided implementations or
+create your own.
+
+## Supported indexers, retrievers, and embedders
+
+[Section titled “Supported indexers, retrievers, and embedders”](#supported-indexers-retrievers-and-embedders)
+
+Genkit provides indexer and retriever support through its plugin system. The
+following plugins are officially supported:
+
+- [Pinecone](/go/docs/plugins/pinecone) cloud vector database
+
+In addition, Genkit supports the following vector stores through predefined
+code templates, which you can customize for your database configuration and
+schema:
+
+- PostgreSQL with [`pgvector`](/go/docs/plugins/pgvector)
+
+Embedding model support is provided through the following plugins:
+
+| Plugin | Models |
+| --- | --- |
+| [Google Generative AI](/go/docs/plugins/google-genai) | Text embedding |
+
+## Defining a RAG Flow
+
+[Section titled “Defining a RAG Flow”](#defining-a-rag-flow)
+
+The following examples show how you could ingest a collection of restaurant menu
+PDF documents into a vector database and retrieve them for use in a flow that
+determines what food items are available.
+
+### Install dependencies
+
+[Section titled “Install dependencies”](#install-dependencies)
+
+In this example, we will use the `textsplitter` library from `langchaingo` and
+the `ledongthuc/pdf` PDF parsing Library:
+
+Terminal window ```
+go get github.com/tmc/langchaingo/textsplittergo get github.com/ledongthuc/pdf
+```
+
+### Define an Indexer
+
+[Section titled “Define an Indexer”](#define-an-indexer)
+
+The following example shows how to create an indexer to ingest a collection of
+PDF documents and store them in a local vector database.
+
+It uses the local file-based vector similarity retriever that Genkit provides
+out-of-the box for simple testing and prototyping. *Do not use this
+in production.*
+
+#### Create the indexer
+
+[Section titled “Create the indexer”](#create-the-indexer)
+
+```
+// Import Genkit's file-based vector retriever, (Don't use in production.)import "github.com/firebase/genkit/go/plugins/localvec"
+// Vertex AI provides the text-embedding-004 embedder model.import "github.com/firebase/genkit/go/plugins/vertexai"
+```
+
+```
+ctx := context.Background()
+g, err := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.VertexAI{}))if err != nil {  log.Fatal(err)}
+if err = localvec.Init(); err != nil {  log.Fatal(err)}
+menuPDFIndexer, _, err := localvec.DefineIndexerAndRetriever(g, "menuQA",    localvec.Config{Embedder: googlegenai.VertexAIEmbedder(g, "text-embedding-004")})if err != nil {  log.Fatal(err)}
+```
+
+#### Create chunking config
+
+[Section titled “Create chunking config”](#create-chunking-config)
+
+This example uses the `textsplitter` library which provides a simple text
+splitter to break up documents into segments that can be vectorized.
+
+The following definition configures the chunking function to return document
+segments of 200 characters, with an overlap between chunks of 20 characters.
+
+```
+splitter := textsplitter.NewRecursiveCharacter(    textsplitter.WithChunkSize(200),    textsplitter.WithChunkOverlap(20),)
+```
+
+More chunking options for this library can be found in the
+[`langchaingo` documentation](https://pkg.go.dev/github.com/tmc/langchaingo/textsplitter#Option).
+
+#### Define your indexer flow
+
+[Section titled “Define your indexer flow”](#define-your-indexer-flow)
+
+```
+genkit.DefineFlow(    g, "indexMenu",    func(ctx context.Context, path string) (any, error) {        // Extract plain text from the PDF. Wrap the logic in Run so it        // appears as a step in your traces.        pdfText, err := genkit.Run(ctx, "extract", func() (string, error) {            return readPDF(path)        })        if err != nil {            return nil, err        }
+        // Split the text into chunks. Wrap the logic in Run so it appears as a        // step in your traces.        docs, err := genkit.Run(ctx, "chunk", func() ([]*ai.Document, error) {            chunks, err := splitter.SplitText(pdfText)            if err != nil {                return nil, err            }
+            var docs []*ai.Document            for _, chunk := range chunks {                docs = append(docs, ai.DocumentFromText(chunk, nil))            }            return docs, nil        })        if err != nil {            return nil, err        }
+        // Add chunks to the index.        err = ai.Index(ctx, menuPDFIndexer, ai.WithDocs(docs...))        return nil, err    },)
+```
+
+```
+// Helper function to extract plain text from a PDF. Excerpted from// https://github.com/ledongthuc/pdffunc readPDF(path string) (string, error) {    f, r, err := pdf.Open(path)    if f != nil {        defer f.Close()    }    if err != nil {        return "", err    }
+    reader, err := r.GetPlainText()    if err != nil {        return "", err    }
+    bytes, err := io.ReadAll(reader)    if err != nil {        return "", err    }
+    return string(bytes), nil}
+```
+
+#### Run the indexer flow
+
+[Section titled “Run the indexer flow”](#run-the-indexer-flow)
+
+Terminal window ```
+genkit flow:run indexMenu "'menu.pdf'"
+```
+
+After running the `indexMenu` flow, the vector database will be seeded with
+documents and ready to be used in Genkit flows with retrieval steps.
+
+### Define a flow with retrieval
+
+[Section titled “Define a flow with retrieval”](#define-a-flow-with-retrieval)
+
+The following example shows how you might use a retriever in a RAG flow. Like
+the indexer example, this example uses Genkit’s file-based vector retriever,
+which you should not use in production.
+
+```
+ctx := context.Background()
+g, err := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.VertexAI{}))if err != nil {    log.Fatal(err)}
+if err = localvec.Init(); err != nil {    log.Fatal(err)}
+model := googlegenai.VertexAIModel(g, "gemini-1.5-flash")
+_, menuPdfRetriever, err := localvec.DefineIndexerAndRetriever(    g, "menuQA", localvec.Config{Embedder: googlegenai.VertexAIEmbedder(g, "text-embedding-004")},)if err != nil {    log.Fatal(err)}
+genkit.DefineFlow(  g, "menuQA",  func(ctx context.Context, question string) (string, error) {    // Retrieve text relevant to the user's question.    resp, err := ai.Retrieve(ctx, menuPdfRetriever, ai.WithTextDocs(question))
+
+    if err != nil {        return "", err    }
+    // Call Generate, including the menu information in your prompt.    return genkit.GenerateText(ctx, g,        ai.WithModelName("googleai/gemini-2.5-flash"),        ai.WithDocs(resp.Documents),        ai.WithSystem(`You are acting as a helpful AI assistant that can answer questions about thefood available on the menu at Genkit Grub Pub.Use only the context provided to answer the question. If you don't know, do notmake up an answer. Do not add or change items on the menu.`)        ai.WithPrompt(question),  })
+```
+
+## Write your own indexers and retrievers
+
+[Section titled “Write your own indexers and retrievers”](#write-your-own-indexers-and-retrievers)
+
+It’s also possible to create your own retriever. This is useful if your
+documents are managed in a document store that is not supported in Genkit (eg:
+MySQL, Google Drive, etc.). The Genkit SDK provides flexible methods that let
+you provide custom code for fetching documents.
+
+You can also define custom retrievers that build on top of existing retrievers
+in Genkit and apply advanced RAG techniques (such as reranking or prompt
+extension) on top.
+
+For example, suppose you have a custom re-ranking function you want to use. The
+following example defines a custom retriever that applies your function to the
+menu retriever defined earlier:
+
+```
+type CustomMenuRetrieverOptions struct {    K          int    PreRerankK int}
+advancedMenuRetriever := genkit.DefineRetriever(    g, "custom", "advancedMenuRetriever",    func(ctx context.Context, req *ai.RetrieverRequest) (*ai.RetrieverResponse, error) {        // Handle options passed using our custom type.        opts, _ := req.Options.(CustomMenuRetrieverOptions)        // Set fields to default values when either the field was undefined        // or when req.Options is not a CustomMenuRetrieverOptions.        if opts.K == 0 {            opts.K = 3        }        if opts.PreRerankK == 0 {            opts.PreRerankK = 10        }
+        // Call the retriever as in the simple case.        resp, err := ai.Retrieve(ctx, menuPDFRetriever,            ai.WithDocs(req.Query),            ai.WithConfig(ocalvec.RetrieverOptions{K: opts.PreRerankK}),        )        if err != nil {            return nil, err        }
+        // Re-rank the returned documents using your custom function.        rerankedDocs := rerank(response.Documents)        response.Documents = rerankedDocs[:opts.K]
+        return response, nil    },)
+```
+---
+# Evaluation
+
+Evaluation is a form of testing that helps you validate your LLM’s responses and
+ensure they meet your quality bar.
+
+Genkit supports third-party evaluation tools through plugins, paired
+with powerful observability features that provide insight into the runtime state
+of your LLM-powered applications. Genkit tooling helps you automatically extract
+data including inputs, outputs, and information from intermediate steps to
+evaluate the end-to-end quality of LLM responses as well as understand the
+performance of your system’s building blocks.
+
+### Types of evaluation
+
+[Section titled “Types of evaluation”](#types-of-evaluation)
+
+Genkit supports two types of evaluation:
+
+- **Inference-based evaluation**: This type of evaluation runs against a
+collection of pre-determined inputs, assessing the corresponding outputs for
+quality.
+
+This is the most common evaluation type, suitable for most use cases. This
+approach tests a system’s actual output for each evaluation run.
+
+You can perform the quality assessment manually, by visually inspecting the
+results. Alternatively, you can automate the assessment by using an
+evaluation metric.
+- **Raw evaluation**: This type of evaluation directly assesses the quality of
+inputs without any inference. This approach typically is used with automated
+evaluation using metrics. All required fields for evaluation (e.g., `input`,
+`context`, `output` and `reference`) must be present in the input dataset. This
+is useful when you have data coming from an external source (e.g., collected
+from your production traces) and you want to have an objective measurement of
+the quality of the collected data.
+
+For more information, see the [Advanced use](#advanced-use) section of this
+page.
+
+This section explains how to perform inference-based evaluation using Genkit.
+
+## Quick start
+
+[Section titled “Quick start”](#quick-start)
+
+Perform these steps to get started quickly with Genkit.
+
+### Setup
+
+[Section titled “Setup”](#setup)
+
+1. Use an existing Genkit app or create a new one by following our
+[Get started](/go/docs/get-started-go) guide.
+1. Add the following code to define a simple RAG application to evaluate. For
+this guide, we use a dummy retriever that always returns the same documents.
+
+```
+package main
+import (    "context"    "fmt"    "log"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai")
+func main() {    ctx := context.Background()
+    // Initialize Genkit    g, err := genkit.Init(ctx,        genkit.WithPlugins(&googlegenai.GoogleAI{}),        genkit.WithDefaultModel("googleai/gemini-2.5-flash"),    )    if err != nil {        log.Fatalf("Genkit initialization error: %v", err)    }
+    // Dummy retriever that always returns the same facts    dummyRetrieverFunc := func(ctx context.Context, req *ai.RetrieverRequest) (*ai.RetrieverResponse, error) {        facts := []string{            "Dog is man's best friend",            "Dogs have evolved and were domesticated from wolves",        }        // Just return facts as documents.        var docs []*ai.Document        for _, fact := range facts {            docs = append(docs, ai.DocumentFromText(fact, nil))        }        return &ai.RetrieverResponse{Documents: docs}, nil    }    factsRetriever := genkit.DefineRetriever(g, "local", "dogFacts", dummyRetrieverFunc)
+    m := googlegenai.GoogleAIModel(g, "gemini-2.5-flash")    if m == nil {        log.Fatal("failed to find model")    }
+    // A simple question-answering flow    genkit.DefineFlow(g, "qaFlow", func(ctx context.Context, query string) (string, error) {        factDocs, err := ai.Retrieve(ctx, factsRetriever, ai.WithTextDocs(query))        if err != nil {            return "", fmt.Errorf("retrieval failed: %w", err)        }        llmResponse, err := genkit.Generate(ctx, g,            ai.WithModelName("googleai/gemini-2.5-flash"),            ai.WithPrompt("Answer this question with the given context: %s", query),            ai.WithDocs(factDocs.Documents...)        )        if err != nil {            return "", fmt.Errorf("generation failed: %w", err)        }        return llmResponse.Text(), nil    })}
+```
+1. You can optionally add evaluation metrics to your application to use while
+evaluating. This guide uses the `EvaluatorRegex` metric from the
+`evaluators` package.
+
+```
+import (    "github.com/firebase/genkit/go/plugins/evaluators")
+func main() {    // ...
+    metrics := []evaluators.MetricConfig{        {            MetricType: evaluators.EvaluatorRegex,        },    }
+    // Initialize Genkit    g, err := genkit.Init(ctx,        genkit.WithPlugins(            &googlegenai.GoogleAI{},            &evaluators.GenkitEval{Metrics: metrics}, // Add this plugin        ),        genkit.WithDefaultModel("googleai/gemini-2.5-flash"),    )}
+```
+
+**Note:** Ensure that the `evaluators` package is
+installed in your go project:
+
+Terminal window ```
+go get github.com/firebase/genkit/go/plugins/evaluators
+```
+1. Start your Genkit application.
+
+Terminal window ```
+genkit start -- go run main.go
+```
+
+### Create a dataset
+
+[Section titled “Create a dataset”](#create-a-dataset)
+
+Create a dataset to define the examples we want to use for evaluating our flow.
+
+1. Go to the Dev UI at `http://localhost:4000` and click the **Datasets**
+button to open the Datasets page.
+1. Click the **Create Dataset** button to open the create dataset dialog.
+
+a. Provide a `datasetId` for your new dataset. This guide uses
+`myFactsQaDataset`.
+
+b. Select `Flow` dataset type.
+
+c. Leave the validation target field empty and click **Save**
+1. Your new dataset page appears, showing an empty dataset. Add examples to it
+by following these steps:
+
+a. Click the **Add example** button to open the example editor panel.
+
+b. Only the `Input` field is required. Enter `"Who is man's best friend?"`
+in the `Input` field, and click **Save** to add the example has to your
+dataset.
+
+If you have configured the `EvaluatorRegex` metric and would like
+to try it out, you need to specify a Reference string that contains the
+pattern to match the output against. For the preceding input, set the
+`Reference output` text to `"(?i)dog"`, which is a case-insensitive regular-
+expression pattern to match the word “dog” in the flow output.
+
+c. Repeat steps (a) and (b) a couple of more times to add more examples.
+This guide adds the following example inputs to the dataset:
+
+```
+"Can I give milk to my cats?""From which animals did dogs evolve?"
+```
+
+If you are using the regular-expression evaluator, use the corresponding
+reference strings:
+
+```
+"(?i)don't know""(?i)wolf|wolves"
+```
+
+Note that this is a contrived example and the regular-expression
+evaluator may not be the right choice to evaluate the responses
+from `qaFlow`. However, this guide can be applied to any
+Genkit Go evaluator of your choice.
+
+By the end of this step, your dataset should have 3 examples in it, with the
+values mentioned above.
+
+### Run evaluation and view results
+
+[Section titled “Run evaluation and view results”](#run-evaluation-and-view-results)
+
+To start evaluating the flow, click the **Run new evaluation** button on your
+dataset page. You can also start a new evaluation from the *Evaluations* tab.
+
+1. Select the `Flow` radio button to evaluate a flow.
+1. Select `qaFlow` as the target flow to evaluate.
+1. Select `myFactsQaDataset` as the target dataset to use for evaluation.
+1. If you have installed an evaluator metric using Genkit plugins,
+you can see these metrics in this page. Select the metrics that you want to
+use with this evaluation run. This is entirely optional: Omitting this step
+will still return the results in the evaluation run, but without any
+associated metrics.
+
+If you have not provided any reference values and are using the
+`EvaluatorRegex` metric, your evaluation will fail since this metric needs
+reference to be set.
+1. Click **Run evaluation** to start evaluation. Depending on the flow
+you’re testing, this may take a while. Once the evaluation is complete, a
+success message appears with a link to view the results. Click the link
+to go to the *Evaluation details* page.
+
+You can see the details of your evaluation on this page, including original
+input, extracted context and metrics (if any).
+
+## Core concepts
+
+[Section titled “Core concepts”](#core-concepts)
+
+### Terminology
+
+[Section titled “Terminology”](#terminology)
+
+Knowing the following terms can help ensure that you correctly understand
+the information provided on this page:
+
+- **Evaluation**: An evaluation is a process that assesses system performance.
+In Genkit, such a system is usually a Genkit primitive, such as a flow or a
+model. An evaluation can be automated or manual (human evaluation).
+- **Bulk inference** Inference is the act of running an input on a flow or
+model to get the corresponding output. Bulk inference involves performing
+inference on multiple inputs simultaneously.
+- **Metric** An evaluation metric is a criterion on which an inference is
+scored. Examples include accuracy, faithfulness, maliciousness, whether the
+output is in English, etc.
+- **Dataset** A dataset is a collection of examples to use for inference-based
+evaluation. A dataset typically consists of `Input` and optional `Reference`
+fields. The `Reference` field does not affect the inference step of evaluation
+but it is passed verbatim to any evaluation metrics. In Genkit, you can create
+a dataset through the Dev UI. There are two types of datasets in Genkit:
+*Flow* datasets and *Model* datasets.
+
+## Supported evaluators
+
+[Section titled “Supported evaluators”](#supported-evaluators)
+
+Genkit supports several evaluators, some built-in, and others
+provided externally.
+
+### Genkit evaluators
+
+[Section titled “Genkit evaluators”](#genkit-evaluators)
+
+Genkit includes a small number of built-in evaluators, ported from
+the [JS evaluators plugin](https://js.api.genkit.dev/enums/_genkit-ai_evaluator.GenkitMetric.html),
+to help you get started:
+
+- EvaluatorDeepEqual — Checks if the generated output is deep-equal to the
+reference output provided.
+- EvaluatorRegex — Checks if the generated output matches the regular
+expression provided in the reference field.
+- EvaluatorJsonata — Checks if the generated output matches the
+[JSONATA](https://jsonata.org/) expression provided in the
+reference field.
+
+## Advanced use
+
+[Section titled “Advanced use”](#advanced-use)
+
+Along with its basic functionality, Genkit also provides advanced support for
+certain evaluation use cases.
+
+### Evaluation using the CLI
+
+[Section titled “Evaluation using the CLI”](#evaluation-using-the-cli)
+
+Genkit CLI provides a rich API for performing evaluation. This is especially
+useful in environments where the Dev UI is not available (e.g. in a CI/CD
+workflow).
+
+Genkit CLI provides 3 main evaluation commands: `eval:flow`, `eval:extractData`,
+and `eval:run`.
+
+#### Evaluation `eval:flow` command
+
+[Section titled “Evaluation eval:flow command”](#evaluation-evalflow-command)
+
+The `eval:flow` command runs inference-based evaluation on an input dataset.
+This dataset may be provided either as a JSON file or by referencing an existing
+dataset in your Genkit runtime.
+
+Terminal window ```
+# Referencing an existing datasetgenkit eval:flow qaFlow --input myFactsQaDataset
+# or, using a dataset from a filegenkit eval:flow qaFlow --input testInputs.json
+```
+
+**Note:** Make sure that you start your genkit app before running these CLI
+commands.
+
+Terminal window ```
+genkit start -- go run main.go
+```
+
+Here, `testInputs.json` should be an array of objects containing an `input`
+field and an optional `reference` field, like below:
+
+```
+[  {    "input": "What is the French word for Cheese?"  },  {    "input": "What green vegetable looks like cauliflower?",    "reference": "Broccoli"  }]
+```
+
+If your flow requires auth, you may specify it using the `--context` argument:
+
+Terminal window ```
+genkit eval:flow qaFlow --input testInputs.json --context '{"auth": {"email_verified": true}}'
+```
+
+By default, the `eval:flow` and `eval:run` commands use all available metrics
+for evaluation. To run on a subset of the configured evaluators, use the
+`--evaluators` flag and provide a comma-separated list of evaluators by name:
+
+Terminal window ```
+genkit eval:flow qaFlow --input testInputs.json --evaluators=genkitEval/regex,genkitEval/jsonata
+```
+
+You can view the results of your evaluation run in the Dev UI at
+`localhost:4000/evaluate`.
+
+#### `eval:extractData` and `eval:run` commands
+
+[Section titled “eval:extractData and eval:run commands”](#evalextractdata-and-evalrun-commands)
+
+To support *raw evaluation*, Genkit provides tools to extract data from traces
+and run evaluation metrics on extracted data. This is useful, for example, if
+you are using a different framework for evaluation or if you are collecting
+inferences from a different environment to test locally for output quality.
+
+You can batch run your Genkit flow and extract an *evaluation dataset* from the
+resultant traces. A raw evaluation dataset is a collection of inputs for
+evaluation metrics, *without* running any prior inference.
+
+Run your flow over your test inputs:
+
+Terminal window ```
+genkit flow:batchRun qaFlow testInputs.json
+```
+
+Extract the evaluation data:
+
+Terminal window ```
+genkit eval:extractData qaFlow --maxRows 2 --output factsEvalDataset.json
+```
+
+The exported data has a format different from the dataset format presented
+earlier. This is because this data is intended to be used with evaluation
+metrics directly, without any inference step. Here is the syntax of the
+extracted data.
+
+```
+Array<{  "testCaseId": string,  "input": any,  "output": any,  "context": any[],  "traceIds": string[],}>;
+```
+
+The data extractor automatically locates retrievers and adds the produced docs
+to the context array. You can run evaluation metrics on this extracted dataset
+using the `eval:run` command.
+
+Terminal window ```
+genkit eval:run factsEvalDataset.json
+```
+
+By default, `eval:run` runs against all configured evaluators, and as with
+`eval:flow`, results for `eval:run` appear in the evaluation page of Developer
+UI, located at `localhost:4000/evaluate`.
+---
+# Monitoring
+
+Genkit provides two complementary monitoring features: OpenTelemetry
+export and trace inspection using the developer UI.
+
+## OpenTelemetry export
+
+[Section titled “OpenTelemetry export”](#opentelemetry-export)
+
+Genkit is fully instrumented with [OpenTelemetry](https://opentelemetry.io/) and
+provides hooks to export telemetry data.
+
+The [Google Cloud plugin](/go/docs/plugins/google-cloud) exports telemetry to
+Cloud’s operations suite.
+
+## Trace store
+
+[Section titled “Trace store”](#trace-store)
+
+The trace store feature is complementary to the telemetry instrumentation. It
+lets you inspect your traces for your flow runs in the Genkit Developer UI.
+
+This feature is enabled whenever you run a Genkit flow in a dev environment
+(such as when using `genkit start` or `genkit flow:run`).
+---
+# Genkit with Cloud Run
+
+You can deploy Genkit flows as web services using Cloud Run. This page,
+as an example, walks you through the process of deploying the default sample
+flow.
+
+1. Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) if
+you haven’t already.
+1. Create a new Google Cloud project using the
+[Cloud console](https://console.cloud.google.com) or choose an existing one.
+The project must be linked to a billing account.
+
+After you create or choose a project, configure the Google Cloud CLI to use
+it:
+
+Terminal window ```
+gcloud auth login
+gcloud init
+```
+1. Create a directory for the Genkit sample project:
+
+Terminal window ```
+mkdir -p ~/tmp/genkit-cloud-project
+cd ~/tmp/genkit-cloud-project
+```
+
+If you’re going to use an IDE, open it to this directory.
+1. Initialize a Go module in your project directory:
+
+Terminal window ```
+go mod init example/cloudrun
+go mod get github.com/firebase/genkit/go
+```
+1. Create a sample app using Genkit:
+
+```
+package main
+import (    "context"    "fmt"    "log"    "net/http"    "os"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai"    "github.com/firebase/genkit/go/plugins/server")
+func main() {    ctx := context.Background()
+    // Initialize Genkit with the Google AI plugin and Gemini 2.0 Flash.    // Alternatively, use &googlegenai.VertexAI{} and "vertexai/gemini-2.5-flash"    // to use Vertex AI as the provider instead.    g, err := genkit.Init(ctx,        genkit.WithPlugins(&googlegenai.GoogleAI{}),        genkit.WithDefaultModel("googleai/gemini-2.5-flash"),    )    if err != nil {        log.Fatalf("failed to initialize Genkit: %w", err)    }
+    flow := genkit.DefineFlow(g, "jokesFlow", func(ctx context.Context, topic string) (string, error) {        resp, err := genkit.Generate(ctx, g,            ai.WithPrompt(`Tell a short joke about %s. Be creative!`, topic),        )        if err != nil {            return "", fmt.Errorf("failed to generate joke: %w", err)        }
+        return resp.Text(), nil    })
+    mux := http.NewServeMux()    mux.HandleFunc("POST /jokesFlow", genkit.Handler(flow))    log.Fatal(server.Start(ctx, "127.0.0.1:"+os.Getenv("PORT"), mux))}
+```
+1. Make API credentials available to your deployed function. Choose which
+credentials you need based on your choice in the sample above:
+
+Gemini (Google AI) 1. Make sure Google AI is
+[available in your region](https://ai.google.dev/available_regions).
+1. [Generate an API key](https://aistudio.google.com/app/apikey) for the
+Gemini API using Google AI Studio.
+1. Make the API key available in the Cloud Run environment:
+
+In a later step, when you deploy your service, you will need to
+reference the name of this secret.
+    1. In the Cloud console, enable the
+    [Secret Manager API](https://console.cloud.google.com/apis/library/secretmanager.googleapis.com?project=_).
+    1. On the
+    [Secret Manager](https://console.cloud.google.com/security/secret-manager?project=_)
+    page, create a new secret containing your API key.
+    1. After you create the secret, on the same page, grant your default
+    compute service account access to the secret with the
+    **Secret Manager Secret Accessor** role. (You can look up the name
+    of the default compute service account on the IAM page.)
+
+Gemini (Vertex AI) 1. In the Cloud console,
+[Enable the Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com?project=_)
+for your project.
+1. On the [IAM](https://console.cloud.google.com/iam-admin/iam?project=_)
+page, ensure that the **Default compute service account** is granted
+the **Vertex AI User** role.
+
+The only secret you need to set up for this tutorial is for the model
+provider, but in general, you must do something similar for each service
+your flow uses.
+1. **Optional**: Try your flow in the developer UI:
+  1. Set up your local environment for the model provider you chose:
+
+  Gemini (Google AI) Terminal window ```
+  export GEMINI_API_KEY=<your API key>
+  ```
+
+  Gemini (Vertex AI) Terminal window ```
+  export GOOGLE_CLOUD_PROJECT=<your project ID>
+  export GOOGLE_CLOUD_LOCATION=us-central1
+  gcloud auth application-default login
+  ```
+  1. Start the UI:
+
+  Terminal window ```
+  genkit start -- go run .
+  ```
+  1. In the developer UI ( `http://localhost:4000/`), run the flow:
+        1. Click **jokesFlow**.
+        1. On the **Input JSON** tab, provide a subject for the model:
+
+        ```
+        "bananas"
+        ```
+        1. Click **Run**.
+1. If everything’s working as expected so far, you can build and deploy the
+flow:
+
+Gemini (Google AI) Terminal window ```
+gcloud run deploy --port 3400 \  --update-secrets=GEMINI_API_KEY=<your-secret-name>:latest
+```
+
+Gemini (Vertex AI) Terminal window ```
+gcloud run deploy --port 3400 \  --set-env-vars GOOGLE_CLOUD_PROJECT=<your-gcloud-project> \  --set-env-vars GOOGLE_CLOUD_LOCATION=us-central1
+```
+
+( `GOOGLE_CLOUD_LOCATION` configures the Vertex API region you want to
+use.)
+
+Choose `N` when asked if you want to allow unauthenticated invocations.
+Answering `N` will configure your service to require IAM credentials. See
+[Authentication](https://cloud.google.com/run/docs/authenticating/overview)
+in the Cloud Run docs for information on providing these credentials.
+
+After deployment finishes, the tool will print the service URL. You can test
+it with `curl`:
+
+Terminal window ```
+curl -X POST https://<service-url>/menuSuggestionFlow \  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \  -H "Content-Type: application/json" -d '"bananas"'
+```
+---
+# Deploy flows to any app hosting platform
+
+You can deploy Genkit flows as web services using any service that can host a Go
+binary. This page, as an example, walks you through the general process of
+deploying the default sample flow, and points out where you must take
+provider-specific actions.
+
+1. Create a directory for the Genkit sample project:
+
+Terminal window ```
+mkdir -p ~/tmp/genkit-cloud-project
+cd ~/tmp/genkit-cloud-project
+```
+
+If you’re going to use an IDE, open it to this directory.
+1. Initialize a Go module in your project directory:
+
+Terminal window ```
+go mod init example/cloudrun
+go get github.com/firebase/genkit/go
+```
+1. Create a sample app using Genkit:
+
+```
+package main
+import (    "context"    "fmt"    "log"    "net/http"    "os"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai"    "github.com/firebase/genkit/go/plugins/server")
+func main() {    ctx := context.Background()
+    // Initialize Genkit with the Google AI plugin and Gemini 2.0 Flash.    // Alternatively, use &googlegenai.VertexAI{} and "vertexai/gemini-2.5-flash"    // to use Vertex AI as the provider instead.    g, err := genkit.Init(ctx,        genkit.WithPlugins(&googlegenai.GoogleAI{}),        genkit.WithDefaultModel("googleai/gemini-2.5-flash"),    )    if err != nil {        log.Fatalf("failed to initialize Genkit: %w", err)    }
+    flow := genkit.DefineFlow(g, "jokesFlow", func(ctx context.Context, topic string) (string, error) {        resp, err := genkit.Generate(ctx, g,            ai.WithPrompt(`Tell a short joke about %s. Be creative!`, topic),        )        if err != nil {            return "", fmt.Errorf("failed to generate joke: %w", err)        }
+        return resp.Text(), nil    })
+    mux := http.NewServeMux()    mux.HandleFunc("POST /jokesFlow", genkit.Handler(flow))    log.Fatal(server.Start(ctx, "127.0.0.1:"+os.Getenv("PORT"), mux))}
+```
+1. Implement some form of authentication and authorization to gate access to
+the flows you plan to deploy.
+
+Because most generative AI services are metered, you most likely do not want
+to allow open access to any endpoints that call them. Some hosting services
+provide an authentication layer as a frontend to apps deployed on them,
+which you can use for this purpose.
+1. Make API credentials available to your deployed function. Do one of the
+following, depending on the model provider you chose:
+
+Gemini (Google AI) 1. Make sure Google AI is [available in your region](https://ai.google.dev/available_regions).
+1. [Generate an API key](https://aistudio.google.com/app/apikey) for the
+Gemini API using Google AI Studio.
+1. Make the API key available in the deployed environment.
+
+Most app hosts provide some system for securely handling secrets such as
+API keys. Often, these secrets are available to your app in the form of
+environment variables. If you can assign your API key to the
+`GEMINI_API_KEY` variable, Genkit will use it automatically. Otherwise,
+you need to modify the `googlegenai.GoogleAI` plugin struct to explicitly
+set the key. (But don’t embed the key directly in code! Use the secret
+management facilities provided by your hosting provider.)
+
+Gemini (Vertex AI) 1. In the Cloud console, [Enable the Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com?project=_)
+for your project.
+1. On the [IAM](https://console.cloud.google.com/iam-admin/iam?project=_)
+page, create a service account for accessing the Vertex AI API if you
+don’t alreacy have one.
+
+Grant the account the **Vertex AI User** role.
+1. [Set up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc#on-prem)
+in your hosting environment.
+1. Configure the plugin with your Google Cloud project ID and the Vertex
+AI API location you want to use. You can do so either by setting the
+`GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` environment
+variables in your hosting environment, or in your
+`googlegenai.VertexAI{}` constructor.
+
+The only secret you need to set up for this tutorial is for the model
+provider, but in general, you must do something similar for each
+service your flow uses.
+1. **Optional**: Try your flow in the developer UI:
+  1. Set up your local environment for the model provider you chose:
+
+  Gemini (Google AI) Terminal window ```
+  export GEMINI_API_KEY=<your API key>
+  ```
+
+  Gemini (Vertex AI) Terminal window ```
+  export GOOGLE_CLOUD_PROJECT=<your project ID>
+  export GOOGLE_CLOUD_LOCATION=us-central1
+  gcloud auth application-default login
+  ```
+  1. Start the UI:
+
+  Terminal window ```
+  genkit start -- go run .
+  ```
+  1. In the developer UI ( `http://localhost:4000/`), run the flow:
+  1. Click **jokesFlow**.
+  1. On the **Input JSON** tab, provide a subject for the model:
+
+  ```
+  "bananas"
+  ```
+  1. Click **Run**.
+1. If everything’s working as expected so far, you can build and deploy the
+flow using your provider’s tools.
+---
+# Writing Genkit plugins
+
+Genkit’s capabilities are designed to be extended by plugins. Genkit plugins are
+configurable modules that can provide models, retrievers, indexers, trace
+stores, and more. You’ve already seen plugins in action just by using Genkit:
+
+```
+import (    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/googlegenai"    "github.com/firebase/genkit/go/plugins/server")
+```
+
+```
+g, err := genkit.Init(ctx,    ai.WithPlugins(        &googlegenai.GoogleAI{APIKey: ...},        &googlegenai.VertexAI{ProjectID: "my-project", Location: "us-central1"},    ),)
+```
+
+The Vertex AI plugin takes configuration (such as the user’s Google Cloud
+project ID) and registers a variety of new models, embedders, and more with the
+Genkit registry. The registry serves as a lookup service for named actions at
+runtime, and powers Genkit’s local UI for running and inspecting models,
+prompts, and more.
+
+## Creating a plugin
+
+[Section titled “Creating a plugin”](#creating-a-plugin)
+
+In Go, a Genkit plugin is a package that adheres to a small set of
+conventions. A single module can contain several plugins.
+
+### Provider ID
+
+[Section titled “Provider ID”](#provider-id)
+
+Every plugin must have a unique identifier string that distinguishes it from
+other plugins. Genkit uses this identifier as a namespace for every resource
+your plugin defines, to prevent naming conflicts with other plugins.
+
+For example, if your plugin has an ID `yourplugin` and provides a model called
+`text-generator`, the full model identifier will be `yourplugin/text-generator`.
+
+This provider ID needs to be exported and you should define it once for your
+plugin and use it consistently when required by a Genkit function.
+
+```
+package yourplugin
+const providerID = "yourplugin"
+```
+
+### Standard exports
+
+[Section titled “Standard exports”](#standard-exports)
+
+Every plugin should define and export the following symbols to conform to the
+`genkit.Plugin` interface:
+
+- A struct type that encapsulates all of the configuration options accepted by
+the plugin.
+
+For any plugin options that are secret values, such as API keys, you should
+offer both a config option and a default environment variable to configure
+it. This lets your plugin take advantage of the secret-management features
+offered by many hosting providers (such as Cloud Secret Manager, which you
+can use with Cloud Run). For example:
+
+```
+type MyPlugin struct {    APIKey string    // Other options you may allow to configure...}
+```
+- A `Name()` method on the struct that returns the provider ID.
+- An `Init()` method on the struct with a declaration like the following:
+
+```
+func (m *MyPlugin) Init(ctx context.Context, g *genkit.Genkit) error
+```
+
+In this function, perform any setup steps required by your plugin. For
+example:
+
+To the extent possible, the resources provided by your plugin shouldn’t
+assume that any other plugins have been installed before this one.
+
+This method will be called automatically during `genkit.Init()` when the
+user passes the plugin into the `WithPlugins()` option.
+  - Confirm that any required configuration values are specified and assign
+  default values to any unspecified optional settings.
+  - Verify that the given configuration options are valid together.
+  - Create any shared resources required by the rest of your plugin. For
+  example, create clients for any services your plugin accesses.
+
+## Building plugin features
+
+[Section titled “Building plugin features”](#building-plugin-features)
+
+A single plugin can activate many new things within Genkit. For example, the
+Vertex AI plugin activates several new models as well as an embedder.
+
+### Model plugins
+
+[Section titled “Model plugins”](#model-plugins)
+
+Genkit model plugins add one or more generative AI models to the Genkit
+registry. A model represents any generative model that is capable of receiving a
+prompt as input and generating text, media, or data as output.
+
+See [Writing a Genkit model plugin](/go/docs/plugin-authoring-models).
+
+### Telemetry plugins
+
+[Section titled “Telemetry plugins”](#telemetry-plugins)
+
+Genkit telemetry plugins configure Genkit’s OpenTelemetry instrumentation to
+export traces, metrics, and logs to a particular monitoring or visualization
+tool.
+
+See [Writing a Genkit telemetry plugin](/go/docs/plugin-authoring-telemetry).
+
+## Publishing a plugin
+
+[Section titled “Publishing a plugin”](#publishing-a-plugin)
+
+Genkit plugins can be published as normal Go packages. To increase
+discoverability, your package should have `genkit` somewhere in its name so it
+can be found with a simple search on
+[`pkg.go.dev`](https://pkg.go.dev/search?q=genkit). Any of the following are
+good choices:
+
+- `github.com/yourorg/genkit-plugins/servicename`
+- `github.com/yourorg/your-repo/genkit/servicename`
+---
+# Writing a Genkit model plugin
+
+Genkit model plugins add one or more generative AI models to the Genkit
+registry. A model represents any generative model that is capable of receiving a
+prompt as input and generating text, media, or data as output.
+
+## Before you begin
+
+[Section titled “Before you begin”](#before-you-begin)
+
+Read [Writing Genkit plugins](/go/docs/plugin-authoring) for information about writing
+any kind of Genkit plug-in, including model plugins. In particular, note that
+every plugin must export a type that conforms to the `genkit.Plugin` interface,
+which includes a `Name()` and a `Init()` function.
+
+## Model definitions
+
+[Section titled “Model definitions”](#model-definitions)
+
+Generally, a model plugin will make one or more `genkit.DefineModel()` calls in
+its `Init` function—once for each model the plugin is providing an
+interface to.
+
+A model definition consists of three components:
+
+1. Metadata declaring the model’s capabilities.
+1. A configuration type with any specific parameters supported by the model.
+1. A generation function that accepts an `ai.ModelRequest` and returns an
+`ai.ModelResponse`, presumably using an AI model to generate the latter.
+
+At a high level, here’s what it looks like in code:
+
+```
+package myplugin
+import (  "context"  "fmt"
+  "github.com/firebase/genkit/go/ai"  "github.com/firebase/genkit/go/genkit")
+const providerID = "myProvider" // Unique ID for your plugin provider
+// MyModelConfig defines the configuration options for your model.// Embed ai.GenerationCommonConfig for common options.type MyModelConfig struct {  ai.GenerationCommonConfig  AnotherCustomOption string `json:"anotherCustomOption,omitempty"`  CustomOption        int    `json:"customOption,omitempty"`}
+// DefineModel registers your custom model with Genkit.func DefineMyModel(g *genkit.Genkit) {  genkit.DefineModel(g, providerID, "my-model",    &ai.ModelInfo{      Label: "My Model", // User-friendly label      Supports: &ai.ModelSupports{        Multiturn:  true,  // Does the model support multi-turn chats?        SystemRole: true,  // Does the model support system messages?        Media:      false, // Can the model accept media input?        Tools:      false, // Does the model support function calling (tools)?      },      Versions: []string{"my-model-001"}, // List supported versions/aliases    },    // The generation function    func(ctx context.Context, mr *ai.ModelRequest, cb ai.ModelStreamCallback) (*ai.ModelResponse, error) {      // Verify that the request includes a configuration that conforms to your schema.      var cfg MyModelConfig      if mr.Config != nil {        // Attempt to cast the config; handle potential type mismatch        if typedCfg, ok := mr.Config.(*MyModelConfig); ok {          cfg = *typedCfg        } else {          // Handle incorrect config type if necessary, or rely on default values          // For simplicity, this example proceeds with default cfg if cast fails        }      }      // Now 'cfg' holds the configuration, either from the request or default.
+      // Use your custom logic to convert Genkit's ai.ModelRequest into a form      // usable by the model's native API.      apiRequest, err := apiRequestFromGenkitRequest(mr, cfg) // Pass config too      if err != nil {        return nil, fmt.Errorf("failed to create API request: %w", err)      }
+      // Send the request to the model API, using your own code or the model      // API's client library.      apiResponse, err := callModelAPI(ctx, apiRequest) // Pass context if needed      if err != nil {        return nil, fmt.Errorf("model API call failed: %w", err)      }
+      // Use your custom logic to convert the model's response to Genkit's ai.ModelResponse.      response, err := genResponseFromAPIResponse(apiResponse)      if err != nil {        return nil, fmt.Errorf("failed to convert API response: %w", err)      }
+      return response, nil    },  )}
+// Placeholder for the function that converts Genkit request to your API's formatfunc apiRequestFromGenkitRequest(mr *ai.ModelRequest, cfg MyModelConfig) (interface{}, error) {  // Implementation depends on your specific model API  fmt.Printf("Converting Genkit request with config: %+v\n", cfg)  // ... conversion logic ...  return "your-api-request-format", nil // Replace with actual request object}
+// Placeholder for the function that calls your model's APIfunc callModelAPI(ctx context.Context, apiRequest interface{}) (interface{}, error) {  // Implementation depends on your specific model API client library  // ... API call logic ...  return "your-api-response-format", nil // Replace with actual response object}
+// Placeholder for the function that converts your API's response to Genkit's formatfunc genResponseFromAPIResponse(apiResponse interface{}) (*ai.ModelResponse, error) {  // Implementation depends on your specific model API response format  // ... conversion logic ...  return &ai.ModelResponse{    Candidates: []*ai.Candidate{      {        Message: &ai.Message{          Content: []*ai.Part{ai.NewTextPart("Generated response text")},          Role:    ai.RoleModel,        },        FinishReason: ai.FinishReasonStop,      },    },  }, nil // Replace with actual response conversion}
+// Example Plugin implementationtype MyPlugin struct{}
+func (p *MyPlugin) Name() string {  return providerID}
+func (p *MyPlugin) Init(ctx context.Context, g *genkit.Genkit) error {  DefineMyModel(g)  // Define other models or resources here  return nil}
+// Ensure MyPlugin implements genkit.Pluginvar _ genkit.Plugin = &MyPlugin{}
+```
+
+### Declaring model capabilities
+
+[Section titled “Declaring model capabilities”](#declaring-model-capabilities)
+
+Every model definition must contain, as part of its metadata, an `ai.ModelInfo`
+value that declares which features the model supports. Genkit uses this
+information to determine certain behaviors, such as verifying whether certain
+inputs are valid for the model. For example, if the model doesn’t support
+multi-turn interactions, then it’s an error to pass it a message history.
+
+Note that these declarations refer to the capabilities of the model as provided
+by your plugin, and do not necessarily map one-to-one to the capabilities of the
+underlying model and model API. For example, even if the model API doesn’t
+provide a specific way to define system messages, your plugin might still
+declare support for the system role, and implement it as special logic that
+inserts system messages into the user prompt.
+
+### Defining your model’s config schema
+
+[Section titled “Defining your model’s config schema”](#defining-your-models-config-schema)
+
+To specify the generation options a model supports, define and export a
+configuration type. Genkit has an `ai.GenerationCommonConfig` type that contains
+options frequently supported by generative AI model services, which you can
+embed or use outright.
+
+Your generation function should verify that the request contains the correct
+options type.
+
+### Transforming requests and responses
+
+[Section titled “Transforming requests and responses”](#transforming-requests-and-responses)
+
+The generation function carries out the primary work of a Genkit model plugin:
+transforming the `ai.ModelRequest` from Genkit’s common format into a format
+that is supported by your model’s API, and then transforming the response from
+your model into the `ai.ModelResponse` format used by Genkit.
+
+Sometimes, this may require massaging or manipulating data to work around model
+limitations. For example, if your model does not natively support a `system`
+message, you may need to transform a prompt’s system message into a user-model
+message pair.
+
+## Exports
+
+[Section titled “Exports”](#exports)
+
+In addition to the resources that all plugins must export, a model plugin should
+also export the following:
+
+- A generation config type, as discussed [earlier](#defining-your-models-config-schema).
+- A `Model()` function, which returns references to your plugin’s defined
+models. Often, this can be:
+
+```
+func Model(g *genkit.Genkit, name string) *ai.Model {    return genkit.LookupModel(g, providerID, name)}
+```
+- A `ModelRef` function, which creates a model reference paired with its
+config that can validate the type and be passed around together:
+
+```
+func ModelRef(name string, config *MyModelConfig) *ai.ModelRef {    return ai.NewModelRef(name, config)}
+```
+- **Optional**: A `DefineModel()` function, which lets users define models
+that your plugin can provide, but that you do not automatically define.
+There are two main reasons why you might want to provide such a function:
+
+A plugin’s `DefineModel()` function is typically a frontend to
+`genkit.DefineModel()` that defines a generation function, but lets the user
+specify the model name and model capabilities.
+  - Your plugin provides access to too many models to practically register
+  each one. For example, the Ollama plugin can provide access to dozens of
+  different models, with more added frequently. For this reason, it
+  doesn’t automatically define any models, and instead requires the user
+  to call `DefineModel()` for each model they want to use.
+  - To give your users the ability to use newly-released models that you
+  have not yet added to your plugin.
+---
+# Writing a Genkit telemetry plugin
+
+The Genkit libraries are instrumented with [OpenTelemetry](http://opentelemetry.io)
+to support collecting traces, metrics, and logs. Genkit users can export this
+telemetry data to monitoring and visualization tools by installing a plugin that
+configures the [OpenTelemetry Go SDK](https://opentelemetry.io/docs/languages/go/getting-started/)
+to export to a particular OpenTelemetry-capable system.
+
+Genkit includes a plugin that configures OpenTelemetry to export data to
+[Google Cloud Monitoring and Cloud Logging](/go/docs/plugins/google-cloud). To support
+other monitoring systems, you can extend Genkit by writing a telemetry plugin,
+as described on this page.
+
+## Before you begin
+
+[Section titled “Before you begin”](#before-you-begin)
+
+Read [Writing Genkit plugins](/go/docs/plugin-authoring) for information about writing
+any kind of Genkit plugin, including telemetry plugins. In particular, note that
+every plugin must export an `Init` function, which users are expected to call
+before using the plugin.
+
+## Exporters and Loggers
+
+[Section titled “Exporters and Loggers”](#exporters-and-loggers)
+
+As stated earlier, the primary job of a telemetry plugin is to configure
+OpenTelemetry (which Genkit has already been instrumented with) to export data
+to a particular service. To do so, you need the following:
+
+- An implementation of OpenTelemetry’s [`SpanExporter`](https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace#SpanExporter)
+interface that exports data to the service of your choice.
+- An implementation of OpenTelemetry’s [`metric.Exporter`](https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#Exporter)
+interface that exports data to the service of your choice.
+- Either a [`slog.Logger`](https://pkg.go.dev/log/slog#Logger)
+or an implementation of the [`slog.Handler`](https://pkg.go.dev/log/slog#Handler)
+interface, that exports logs to the service of your choice.
+
+Depending on the service you’re interested in exporting to, this might be a
+relatively minor effort or a large one.
+
+Because OpenTelemetry is an industry standard, many monitoring services already
+have libraries that implement these interfaces. For example, the `googlecloud`
+plugin for Genkit makes use of the
+[`opentelemetry-operations-go`](https://github.com/GoogleCloudPlatform/opentelemetry-operations-go)
+library, maintained by the Google Cloud team.
+Similarly, many monitoring services provide libraries that implement the
+standard `slog` interfaces.
+
+On the other hand, if no such libraries are available for your service,
+implementing the necessary interfaces can be a substantial project.
+
+Check the [OpenTelemetry registry](https://opentelemetry.io/ecosystem/registry/?component=exporter&language=go)
+or the monitoring service’s docs to see if integrations are already available.
+
+If you need to build these integrations yourself, take a look at the source of
+the [official OpenTelemetry exporters](https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters)
+and the page [A Guide to Writing `slog` Handlers](https://github.com/golang/example/blob/master/slog-handler-guide/README).
+
+## Building the plugin
+
+[Section titled “Building the plugin”](#building-the-plugin)
+
+### Dependencies
+
+[Section titled “Dependencies”](#dependencies)
+
+Every telemetry plugin needs to import the Genkit core library and several
+OpenTelemetry libraries:
+
+```
+  // Import the Genkit core library.
+  "github.com/firebase/genkit/go/genkit"
+  // Import the OpenTelemetry libraries.  "go.opentelemetry.io/otel"  "go.opentelemetry.io/otel/sdk/metric"  "go.opentelemetry.io/otel/sdk/trace"
+```
+
+If you are building a plugin around an existing OpenTelemetry or `slog`
+integration, you will also need to import them.
+
+### `Config`
+
+[Section titled “Config”](#config)
+
+A telemetry plugin should, at a minimum, support the following configuration
+options:
+
+```
+type Config struct {  // Export even in the dev environment.  ForceExport bool
+  // The interval for exporting metric data.  // The default is 60 seconds.  MetricInterval time.Duration
+  // The minimum level at which logs will be written.  // Defaults to [slog.LevelInfo].  LogLevel slog.Leveler}
+```
+
+The examples that follow assume you are making these options available and will
+provide some guidance on how to handle them.
+
+Most plugins will also include configuration settings for the service it’s
+exporting to (API key, project name, and so on).
+
+### `Init()`
+
+[Section titled “Init()”](#init)
+
+The `Init()` function of a telemetry plugin should do all of the following:
+
+- Return early if Genkit is running in a development environment (such as when
+running with with `genkit start`) and the `Config.ForceExport` option isn’t
+set:
+
+```
+shouldExport := cfg.ForceExport || os.Getenv("GENKIT_ENV") != "dev"if !shouldExport {  return nil}
+```
+- Initialize your trace span exporter and register it with Genkit:
+
+```
+spanProcessor := trace.NewBatchSpanProcessor(YourCustomSpanExporter{})genkit.RegisterSpanProcessor(g, spanProcessor)
+```
+- Initialize your metric exporter and register it with the OpenTelemetry
+library:
+
+```
+r := metric.NewPeriodicReader(  YourCustomMetricExporter{},  metric.WithInterval(cfg.MetricInterval),)mp := metric.NewMeterProvider(metric.WithReader(r))otel.SetMeterProvider(mp)
+```
+
+Use the user-configured collection interval ( `Config.MetricInterval`) when
+initializing the `PeriodicReader`.
+- Register your `slog` handler as the default logger:
+
+```
+logger := slog.New(YourCustomHandler{  Options: &slog.HandlerOptions{Level: cfg.LogLevel},})slog.SetDefault(logger)
+```
+
+You should configure your handler to honor the user-specified minimum log
+level ( `Config.LogLevel`).
+
+### PII redaction
+
+[Section titled “PII redaction”](#pii-redaction)
+
+Because most generative AI flows begin with user input of some kind, it’s a
+likely possibility that some flow traces contain personally-identifiable
+information (PII). To protect your users’ information, you should redact PII
+from traces before you export them.
+
+If you are building your own span exporter, you can build this functionality
+into it.
+
+If you’re building your plugin around an existing OpenTelemetry integration, you
+can wrap the provided span exporter with a custom exporter that carries out this
+task. For example, the `googlecloud` plugin removes the `genkit:input` and
+`genkit:output` attributes from every span before exporting them using a wrapper
+similar to the following:
+
+```
+type redactingSpanExporter struct {  trace.SpanExporter}
+func (e *redactingSpanExporter) ExportSpans(ctx context.Context, spanData []trace.ReadOnlySpan) error {  var redacted []trace.ReadOnlySpan  for _, s := range spanData {    redacted = append(redacted, redactedSpan{s})  }  return e.SpanExporter.ExportSpans(ctx, redacted)}
+func (e *redactingSpanExporter) Shutdown(ctx context.Context) error {  return e.SpanExporter.Shutdown(ctx)}
+type redactedSpan struct {  trace.ReadOnlySpan}
+func (s redactedSpan) Attributes() []attribute.KeyValue {  // Omit input and output, which may contain PII.  var ts []attribute.KeyValue  for _, a := range s.ReadOnlySpan.Attributes() {    if a.Key == "genkit:input" || a.Key == "genkit:output" {      continue    }    ts = append(ts, a)  }  return ts}
+```
+
+## Troubleshooting
+
+[Section titled “Troubleshooting”](#troubleshooting)
+
+If you’re having trouble getting data to show up where you expect, OpenTelemetry
+provides a useful [diagnostic tool](https://opentelemetry.io/docs/languages/js/getting-started/nodejs/#troubleshooting)
+that helps locate the source of the problem.
+---
+# Google Generative AI plugin
+
+The Google Generative AI plugin provides interfaces to Google’s Gemini models through either the Gemini API or the Vertex AI Gemini API.
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+The configuration depends on which provider you choose:
+
+### Google AI
+
+[Section titled “Google AI”](#google-ai)
+
+To use this plugin, import the `googlegenai` package and pass
+`googlegenai.GoogleAI` to `WithPlugins()` in the Genkit initializer:
+
+```
+import "github.com/firebase/genkit/go/plugins/googlegenai"
+```
+
+```
+g, err := genkit.Init(context.Background(), ai.WithPlugins(&googlegenai.GoogleAI{}))
+```
+
+The plugin requires an API key for the Gemini API, which you can get from
+[Google AI Studio](https://aistudio.google.com/app/apikey).
+
+Configure the plugin to use your API key by doing one of the following:
+
+- Set the `GEMINI_API_KEY` environment variable to your API key.
+- Specify the API key when you initialize the plugin:
+
+```
+ai.WithPlugins(&googlegenai.GoogleAI{APIKey: "YOUR_API_KEY"})
+```
+
+However, don’t embed your API key directly in code! Use this feature only
+in conjunction with a service like Cloud Secret Manager or similar.
+
+### Vertex AI
+
+[Section titled “Vertex AI”](#vertex-ai)
+
+To use this plugin, import the `googlegenai` package and pass
+`googlegenai.VertexAI` to `WithPlugins()` in the Genkit initializer:
+
+```
+import "github.com/firebase/genkit/go/plugins/googlegenai"
+```
+
+```
+g, err := genkit.Init(context.Background(), genkit.WithPlugins(&googlegenai.VertexAI{}))
+```
+
+The plugin requires you to specify your Google Cloud project ID, the
+[region](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations)
+to which you want to make Vertex API requests, and your Google Cloud project
+credentials.
+
+- By default, `googlegenai.VertexAI` gets your Google Cloud project ID from the
+`GOOGLE_CLOUD_PROJECT` environment variable.
+
+You can also pass this value directly:
+
+```
+genkit.WithPlugins(&googlegenai.VertexAI{ProjectID: "my-project-id"})
+```
+- By default, `googlegenai.VertexAI` gets the Vertex AI API location from the
+`GOOGLE_CLOUD_LOCATION` environment variable.
+
+You can also pass this value directly:
+
+```
+genkit.WithPlugins(&googlegenai.VertexAI{Location: "us-central1"})
+```
+- To provide API credentials, you need to set up Google Cloud Application
+Default Credentials.
+  1. To specify your credentials:
+        - If you’re running your flow from a Google Cloud environment (Cloud
+        Functions, Cloud Run, and so on), this is set automatically.
+        - On your local dev environment, do this by running:
+
+        Terminal window ```
+        gcloud auth application-default login
+        ```
+        - For other environments, see the [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
+        docs.
+  1. In addition, make sure the account is granted the Vertex AI User IAM role
+  ( `roles/aiplatform.user`). See the Vertex AI [access control](https://cloud.google.com/vertex-ai/generative-ai/docs/access-control)
+  docs.
+
+## Usage
+
+[Section titled “Usage”](#usage)
+
+### Generative models
+
+[Section titled “Generative models”](#generative-models)
+
+To get a reference to a supported model, specify its identifier to
+either `googlegenai.GoogleAIModel` or `googlgenai.VertexAIModel`:
+
+```
+model := googlegenai.GoogleAIModel(g, "gemini-2.5-flash")
+```
+
+Alternatively, you may create a `ModelRef` which pairs the model name with its
+config:
+
+```
+modelRef := googlegenai.GoogleAIModelRef("gemini-2.5-flash", &googlegenai.GeminiConfig{    Temperature: 0.5,    MaxOutputTokens: 500,    // Other configuration...})
+```
+
+The following models are supported: `gemini-1.5-pro`, `gemini-1.5-flash`,
+`gemini-2.0-pro`, `gemini-2.5-flash`, and other experimental models.
+
+Model references have a `Generate()` method that calls the Google API:
+
+```
+resp, err := genkit.Generate(ctx, g, ai.WithModel(modelRef), ai.WithPrompt("Tell me a joke."))if err != nil {      return err}
+log.Println(resp.Text())
+```
+
+See [Generating content with AI models](/go/docs/models) for more information.
+
+### Embedding models
+
+[Section titled “Embedding models”](#embedding-models)
+
+To get a reference to a supported embedding model, specify its identifier to
+either `googlegenai.GoogleAIEmbedder` or `googlgenai.VertexAIEmbedder`:
+
+```
+embeddingModel := googlegenai.GoogleAIEmbedder(g, "text-embedding-004")
+```
+
+The following models are supported:
+
+- **Google AI**
+
+`text-embedding-004` and `embedding-001`
+- **Vertex AI**
+
+`textembedding-gecko@003`, `textembedding-gecko@002`,
+`textembedding-gecko@001`, `text-embedding-004`,
+`textembedding-gecko-multilingual@001`, `text-multilingual-embedding-002`,
+and `multimodalembedding`
+
+Embedder references have an `Embed()` method that calls the Google AI API:
+
+```
+resp, err := ai.Embed(ctx, embeddingModel, ai.WithDocs(userInput))if err != nil {      return err}
+```
+
+You can also pass an Embedder to an indexer’s `Index()` method and a retriever’s
+`Retrieve()` method:
+
+```
+if err := ai.Index(ctx, myIndexer, ai.WithDocs(docsToIndex...)); err != nil {      return err}
+```
+
+```
+resp, err := ai.Retrieve(ctx, myRetriever, ai.WithDocs(userInput))if err != nil {      return err}
+```
+
+See [Retrieval-augmented generation (RAG)](/go/docs/rag) for more information.
+---
+# Google Cloud telemetry and logging plugin
+
+The Google Cloud plugin exports Genkit’s telemetry and logging data to
+[Google Cloud’s operation suite](https://cloud.google.com/products/operations).
+
+Note: Logging is facilitated by the `slog` package
+in favor of the [OpenTelemetry](https://opentelemetry.io/) logging APIs. Export
+of logs is done via a dedicated Google Cloud exporter.
+
+## Prerequisites
+
+[Section titled “Prerequisites”](#prerequisites)
+
+If you want to locally run flows that use this plugin, you need the
+[Google Cloud CLI tool](https://cloud.google.com/sdk/docs/install) installed.
+
+## Set up a Google Cloud account
+
+[Section titled “Set up a Google Cloud account”](#set-up-a-google-cloud-account)
+
+This plugin requires a Google Cloud account ( [sign up](https://cloud.google.com/gcp) if you don’t already have one) and a Google Cloud project.
+
+Prior to adding the plugin, make sure that the following APIs are enabled for your project:
+
+- [Cloud Logging API](https://console.cloud.google.com/apis/library/logging.googleapis.com)
+- [Cloud Trace API](https://console.cloud.google.com/apis/library/cloudtrace.googleapis.com)
+- [Cloud Monitoring API](https://console.cloud.google.com/apis/library/monitoring.googleapis.com)
+
+These APIs should be listed in the [API dashboard](https://console.cloud.google.com/apis/dashboard) for your project.
+
+Click [here](https://support.google.com/googleapi/answer/6158841) to learn more about enabling and disabling APIs.
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+To enable exporting to Google Cloud Tracing, Logging, and Monitoring, import the
+`googlecloud` package and run `Init()`. After calling `Init()`, your telemetry
+gets automatically exported.
+
+```
+import "github.com/firebase/genkit/go/plugins/googlecloud"
+```
+
+```
+if err := (&googlecloud.GoogleCloud{ProjectID: "your-google-cloud-project"}).Init(ctx, g); err != nil {  return err}
+```
+
+You must specify the Google Cloud project to which you want to export telemetry
+data. There are also some optional parameters:
+
+- `ProjectID`: (Required) Your Google Cloud project ID.
+- `ForceExport`: Export telemetry data even when running in a dev environment
+(such as when using `genkit start` or `genkit flow:run`). This is a quick way
+to test your integration and send your first events for monitoring in Google
+Cloud.
+
+If you use this option, you also need to make your Cloud credentials available
+locally:
+
+Terminal window ```
+gcloud auth application-default login
+```
+- `MetricInterval`: The interval ( `time.Duration`) at which to export telemetry
+information. By default, this is 60 seconds.
+- `LogLevel`: The minimum severity level ( `slog.Level`) of log entries to export. By default,
+`slog.LevelInfo`.
+
+The plugin requires your Google Cloud project credentials. If you’re running
+your flows from a Google Cloud environment (Cloud Run, etc), the credentials are
+set automatically. Running in other environments requires setting up
+[Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc).
+
+## Production monitoring via Google Cloud’s operations suite
+
+[Section titled “Production monitoring via Google Cloud’s operations suite”](#production-monitoring-via-google-clouds-operations-suite)
+
+Once a flow is deployed, navigate to [Google Cloud’s operations suite](https://console.cloud.google.com/) and select your project.
+
+![Google Cloud Operations Suite dashboard](/_astro/cloud-ops-suite.nuxcL9JP_Z145aJ1.webp)
+
+### Logs and traces
+
+[Section titled “Logs and traces”](#logs-and-traces)
+
+From the side menu, find ‘Logging’ and click ‘Logs explorer’.
+
+![Logs Explorer menu item in Cloud Logging](/_astro/cloud-ops-logs-explorer-menu.BEWdhThV_ZD7rzA.webp)
+
+You will see all logs that are associated with your deployed flow, including `console.log()`. Any log which has the prefix `[genkit]` is a Genkit-internal log that contains information that may be interesting for debugging purposes. For example, Genkit logs in the format `Config[...]` contain metadata such as the temperature and topK values for specific LLM inferences. Logs in the format `Output[...]` contain LLM responses while `Input[...]` logs contain the prompts. Cloud Logging has robust ACLs that allow fine grained control over sensitive logs.
+
+> Note: Prompts and LLM responses are redacted from trace attributes in Cloud Trace.
+
+For specific log lines, it is possible to navigate to their respective traces by clicking on the extended menu ![Log line menu icon](/_astro/cloud-ops-log-menu-icon.4Dim4J5G_1v5wgo.webp) icon and selecting “View in trace details”.
+
+![View in trace details option in log menu](/_astro/cloud-ops-view-trace-details.CBSAOREC_R8kiS.webp)
+
+This will bring up a trace preview pane providing a quick glance of the details of the trace. To get to the full details, click the “View in Trace” link at the top right of the pane.
+
+![View in Trace link in trace preview pane](/_astro/cloud-ops-view-in-trace.BKg24a3E_1wNRAe.webp)
+
+The most prominent navigation element in Cloud Trace is the trace scatter plot. It contains all collected traces in a given time span.
+
+![Cloud Trace scatter plot](/_astro/cloud-ops-trace-graph.CeQ28Xfh_15Q4Se.webp)
+
+Clicking on each data point will show its details below the scatter plot.
+
+![Cloud Trace details view](/_astro/cloud-ops-trace-view.B7au5dRz_moJCv.webp)
+
+The detailed view contains the flow shape, including all steps, and important timing information. Cloud Trace has the ability to interleave all logs associated with a given trace within this view. Select the “Show expanded” option in the “Logs & events” drop down.
+
+![Show expanded option in Logs &#x26; events dropdown](/_astro/cloud-ops-show-expanded.CIo-3v3F_CudcV.webp)
+
+The resultant view allows detailed examination of logs in the context of the trace, including prompts and LLM responses.
+
+![Trace details view with expanded logs](/_astro/cloud-ops-output-logs.Db6riJri_218yQN.webp)
+
+### Metrics
+
+[Section titled “Metrics”](#metrics)
+
+Viewing all metrics that Genkit exports can be done by selecting “Logging” from the side menu and clicking on “Metrics management”.
+
+![Metrics Management menu item in Cloud Logging](/_astro/cloud-ops-metrics-mgmt.DBcXxge4_Z15Hmgw.webp)
+
+The metrics management console contains a tabular view of all collected metrics, including those that pertain to Cloud Run and its surrounding environment. Clicking on the ‘Workload’ option will reveal a list that includes Genkit-collected metrics. Any metric with the `genkit` prefix constitutes an internal Genkit metric.
+
+![Metrics table showing Genkit metrics](/_astro/cloud-ops-metrics-table.ByJ1DRTl_Z19rWai.webp)
+
+Genkit collects several categories of metrics, including flow-level, action-level, and generate-level metrics. Each metric has several useful dimensions facilitating robust filtering and grouping.
+
+Common dimensions include:
+
+- `flow_name` - the top-level name of the flow.
+- `flow_path` - the span and its parent span chain up to the root span.
+- `error_code` - in case of an error, the corresponding error code.
+- `error_message` - in case of an error, the corresponding error message.
+- `model` - the name of the model.
+- `temperature` - the inference temperature [value](https://ai.google.dev/docs/concepts#model-parameters).
+- `topK` - the inference topK [value](https://ai.google.dev/docs/concepts#model-parameters).
+- `topP` - the inference topP [value](https://ai.google.dev/docs/concepts#model-parameters).
+
+#### Flow-level metrics
+
+[Section titled “Flow-level metrics”](#flow-level-metrics)
+
+| Name | Dimensions |
+| --- | --- |
+| genkit/flow/requests | flow\_name, error\_code, error\_message |
+| genkit/flow/latency | flow\_name |
+
+#### Action-level metrics
+
+[Section titled “Action-level metrics”](#action-level-metrics)
+
+| Name | Dimensions |
+| --- | --- |
+| genkit/action/requests | flow\_name, error\_code, error\_message |
+| genkit/action/latency | flow\_name |
+
+#### Generate-level metrics
+
+[Section titled “Generate-level metrics”](#generate-level-metrics)
+
+| Name | Dimensions |
+| --- | --- |
+| genkit/ai/generate | flow\_path, model, temperature, topK, topP, error\_code, error\_message |
+| genkit/ai/generate/input\_tokens | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/output\_tokens | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/input\_characters | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/output\_characters | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/input\_images | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/output\_images | flow\_path, model, temperature, topK, topP |
+| genkit/ai/generate/latency | flow\_path, model, temperature, topK, topP, error\_code, error\_message |
+
+Visualizing metrics can be done through the Metrics Explorer. Using the side menu, select ‘Logging’ and click ‘Metrics explorer’
+
+![Metrics Explorer menu item in Cloud Logging](/_astro/cloud-ops-metrics-explorer.hSpZPXYP_MoOA.webp)
+
+Select a metrics by clicking on the “Select a metric” dropdown, selecting ‘Generic Node’, ‘Genkit’, and a metric.
+
+![Selecting a Genkit metric in Metrics Explorer](/_astro/cloud-ops-metrics-generic-node.ZUgtOJ4W_Z16qeM.webp)
+
+The visualization of the metric will depend on its type (counter, histogram, etc). The Metrics Explorer provides robust aggregation and querying facilities to help graph metrics by their various dimensions.
+
+![Metrics Explorer showing a Genkit metric graph](/_astro/cloud-ops-metrics-metric.B0GvHb0j_bbryX.webp)
+
+## Telemetry Delay
+
+[Section titled “Telemetry Delay”](#telemetry-delay)
+
+There may be a slight delay before telemetry for a particular execution of a flow is displayed in Cloud’s operations suite. In most cases, this delay is under 1 minute.
+
+## Quotas and limits
+
+[Section titled “Quotas and limits”](#quotas-and-limits)
+
+There are several quotas that are important to keep in mind:
+
+- [Cloud Trace Quotas](http://cloud.google.com/trace/docs/quotas)
+  - 128 bytes per attribute key
+  - 256 bytes per attribute value
+- [Cloud Logging Quotas](http://cloud.google.com/logging/quotas)
+  - 256 KB per log entry
+- [Cloud Monitoring Quotas](http://cloud.google.com/monitoring/quotas)
+
+## Cost
+
+[Section titled “Cost”](#cost)
+
+Cloud Logging, Cloud Trace, and Cloud Monitoring have generous free tiers. Specific pricing can be found at the following links:
+
+- [Cloud Logging Pricing](http://cloud.google.com/stackdriver/pricing#google-cloud-observability-pricing)
+- [Cloud Trace Pricing](https://cloud.google.com/trace#pricing)
+- [Cloud Monitoring Pricing](https://cloud.google.com/stackdriver/pricing#monitoring-pricing-summary)
+---
+# Firebase plugin
+
+The Firebase plugin provides integration with Firebase services for Genkit applications. It enables you to use Firebase Firestore as a vector database for retrieval-augmented generation (RAG) applications by defining retrievers and indexers.
+
+## Prerequisites
+
+[Section titled “Prerequisites”](#prerequisites)
+
+This plugin requires:
+
+- A Firebase project - Create one at the [Firebase Console](https://console.firebase.google.com/)
+- Firestore database enabled in your Firebase project
+- Firebase credentials configured for your application
+
+### Firebase Setup
+
+[Section titled “Firebase Setup”](#firebase-setup)
+
+1. **Create a Firebase project** at [Firebase Console](https://console.firebase.google.com/)
+1. **Enable Firestore** in your project:
+  - Go to Firestore Database in the Firebase console
+  - Click “Create database”
+  - Choose your security rules and location
+1. **Set up authentication** using one of these methods:
+  - For local development: `firebase login` and `firebase use <project-id>`
+  - For production: Service account key or Application Default Credentials
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+### Basic Configuration
+
+[Section titled “Basic Configuration”](#basic-configuration)
+
+To use this plugin, import the `firebase` package and initialize it with your project:
+
+```
+import "github.com/firebase/genkit/go/plugins/firebase"
+```
+
+```
+// Option 1: Using project ID (recommended)firebasePlugin := &firebase.Firebase{    ProjectId: "your-firebase-project-id",}
+g, err := genkit.Init(context.Background(), genkit.WithPlugins(firebasePlugin))if err != nil {    log.Fatal(err)}
+```
+
+### Environment Variable Configuration
+
+[Section titled “Environment Variable Configuration”](#environment-variable-configuration)
+
+You can also configure the project ID using environment variables:
+
+Terminal window ```
+export FIREBASE_PROJECT_ID=your-firebase-project-id
+```
+
+```
+// Plugin will automatically use FIREBASE_PROJECT_ID environment variablefirebasePlugin := &firebase.Firebase{}g, err := genkit.Init(context.Background(), genkit.WithPlugins(firebasePlugin))
+```
+
+### Advanced Configuration
+
+[Section titled “Advanced Configuration”](#advanced-configuration)
+
+For advanced use cases, you can provide a pre-configured Firebase app:
+
+```
+import firebasev4 "firebase.google.com/go/v4"
+// Create Firebase app with custom configurationapp, err := firebasev4.NewApp(ctx, &firebasev4.Config{    ProjectID: "your-project-id",    // Additional Firebase configuration options})if err != nil {    log.Fatal(err)}
+firebasePlugin := &firebase.Firebase{    App: app,}
+```
+
+## Usage
+
+[Section titled “Usage”](#usage)
+
+### Defining Firestore Retrievers
+
+[Section titled “Defining Firestore Retrievers”](#defining-firestore-retrievers)
+
+The primary use case for the Firebase plugin is creating retrievers for RAG applications:
+
+```
+// Define a Firestore retrieverretrieverOptions := firebase.RetrieverOptions{    Name:           "my-documents",    Collection:     "documents",    VectorField:    "embedding",    EmbedderName:   "text-embedding-3-small",    TopK:           10,}
+retriever, err := firebase.DefineRetriever(ctx, g, retrieverOptions)if err != nil {    log.Fatal(err)}
+```
+
+### Using Retrievers in RAG Workflows
+
+[Section titled “Using Retrievers in RAG Workflows”](#using-retrievers-in-rag-workflows)
+
+Once defined, you can use the retriever in your RAG workflows:
+
+```
+// Retrieve relevant documentsresults, err := ai.Retrieve(ctx, retriever, ai.WithDocs("What is machine learning?"))if err != nil {    log.Fatal(err)}
+// Use retrieved documents in generationvar contextDocs []stringfor _, doc := range results.Documents {    contextDocs = append(contextDocs, doc.Content[0].Text)}
+context := strings.Join(contextDocs, "\n\n")resp, err := genkit.Generate(ctx, g,    ai.WithPrompt(fmt.Sprintf("Context: %s\n\nQuestion: %s", context, "What is machine learning?")),)
+```
+
+### Complete RAG Example
+
+[Section titled “Complete RAG Example”](#complete-rag-example)
+
+Here’s a complete example showing how to set up a RAG system with Firebase:
+
+```
+package main
+import (    "context"    "fmt"    "log"    "strings"
+    "github.com/firebase/genkit/go/ai"    "github.com/firebase/genkit/go/genkit"    "github.com/firebase/genkit/go/plugins/firebase"    "github.com/firebase/genkit/go/plugins/compat_oai/openai")
+func main() {    ctx := context.Background()
+    // Initialize plugins    firebasePlugin := &firebase.Firebase{        ProjectId: "my-firebase-project",    }
+    openaiPlugin := &openai.OpenAI{        APIKey: "your-openai-api-key",    }
+    g, err := genkit.Init(ctx, genkit.WithPlugins(firebasePlugin, openaiPlugin))    if err != nil {        log.Fatal(err)    }
+    // Define retriever for knowledge base    retriever, err := firebase.DefineRetriever(ctx, g, firebase.RetrieverOptions{        Name:         "knowledge-base",        Collection:   "documents",        VectorField:  "embedding",        EmbedderName: "text-embedding-3-small",        TopK:         5,    })    if err != nil {        log.Fatal(err)    }
+    // RAG query function    query := "How does machine learning work?"
+    // Step 1: Retrieve relevant documents    retrievalResults, err := ai.Retrieve(ctx, retriever, ai.WithDocs(query))    if err != nil {        log.Fatal(err)    }
+    // Step 2: Prepare context from retrieved documents    var contextParts []string    for _, doc := range retrievalResults.Documents {        contextParts = append(contextParts, doc.Content[0].Text)    }    context := strings.Join(contextParts, "\n\n")
+    // Step 3: Generate answer with context    model := openaiPlugin.Model(g, "gpt-4o")    response, err := genkit.Generate(ctx, g,        ai.WithModel(model),        ai.WithPrompt(fmt.Sprintf(`Based on the following context, answer the question:
+Context:%s
+Question: %s
+Answer:`, context, query)),    )    if err != nil {        log.Fatal(err)    }
+    fmt.Printf("Answer: %s\n", response.Text())}
+```
+
+## Firestore Data Structure
+
+[Section titled “Firestore Data Structure”](#firestore-data-structure)
+
+### Document Storage Format
+
+[Section titled “Document Storage Format”](#document-storage-format)
+
+Your Firestore documents should follow this structure for optimal retrieval:
+
+```
+{  "content": "Your document text content here...",  "embedding": [0.1, -0.2, 0.3, ...],  "metadata": {    "title": "Document Title",    "author": "Author Name",    "category": "Technology",    "timestamp": "2024-01-15T10:30:00Z"  }}
+```
+
+### Indexing Documents
+
+[Section titled “Indexing Documents”](#indexing-documents)
+
+To add documents to your Firestore collection with embeddings:
+
+```
+// Example of adding documents with embeddingsembedder := openaiPlugin.Embedder(g, "text-embedding-3-small")
+documents := []struct {    Content  string    Metadata map[string]interface{}}{    {        Content: "Machine learning is a subset of artificial intelligence...",        Metadata: map[string]interface{}{            "title":    "Introduction to ML",            "category": "Technology",        },    },    // More documents...}
+for _, doc := range documents {    // Generate embedding    embeddingResp, err := ai.Embed(ctx, embedder, ai.WithDocs(doc.Content))    if err != nil {        log.Fatal(err)    }
+    // Store in Firestore    firestoreClient, _ := firebasePlugin.App.Firestore(ctx)    _, err = firestoreClient.Collection("documents").Doc().Set(ctx, map[string]interface{}{        "content":   doc.Content,        "embedding": embeddingResp.Embeddings[0].Embedding,        "metadata":  doc.Metadata,    })    if err != nil {        log.Fatal(err)    }}
+```
+
+## Configuration Options
+
+[Section titled “Configuration Options”](#configuration-options)
+
+### Firebase struct
+
+[Section titled “Firebase struct”](#firebase-struct)
+
+```
+type Firebase struct {    // ProjectId is your Firebase project ID    // If empty, uses FIREBASE_PROJECT_ID environment variable    ProjectId string
+    // App is a pre-configured Firebase app instance    // Use either ProjectId or App, not both    App *firebasev4.App}
+```
+
+### RetrieverOptions
+
+[Section titled “RetrieverOptions”](#retrieveroptions)
+
+```
+type RetrieverOptions struct {    // Name is a unique identifier for the retriever    Name string
+    // Collection is the Firestore collection name containing documents    Collection string
+    // VectorField is the field name containing the embedding vectors    VectorField string
+    // EmbedderName is the name of the embedder to use for query vectorization    EmbedderName string
+    // TopK is the number of top similar documents to retrieve    TopK int
+    // Additional filtering and configuration options}
+```
+
+## Authentication
+
+[Section titled “Authentication”](#authentication)
+
+### Local Development
+
+[Section titled “Local Development”](#local-development)
+
+For local development, use the Firebase CLI:
+
+Terminal window ```
+# Install Firebase CLInpm install -g firebase-tools
+# Login and set projectfirebase loginfirebase use your-project-id
+```
+
+### Production Deployment
+
+[Section titled “Production Deployment”](#production-deployment)
+
+For production, use one of these authentication methods:
+
+#### Service Account Key
+
+[Section titled “Service Account Key”](#service-account-key)
+
+```
+import "google.golang.org/api/option"
+app, err := firebasev4.NewApp(ctx, &firebasev4.Config{    ProjectID: "your-project-id",}, option.WithCredentialsFile("path/to/serviceAccountKey.json"))
+```
+
+#### Application Default Credentials
+
+[Section titled “Application Default Credentials”](#application-default-credentials)
+
+Set the environment variable:
+
+Terminal window ```
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/serviceAccountKey.json"
+```
+
+Or use the metadata server on Google Cloud Platform.
+
+## Error Handling
+
+[Section titled “Error Handling”](#error-handling)
+
+Handle Firebase-specific errors appropriately:
+
+```
+retriever, err := firebase.DefineRetriever(ctx, g, options)if err != nil {    if strings.Contains(err.Error(), "plugin not found") {        log.Fatal("Firebase plugin not initialized. Make sure to include it in genkit.Init()")    }    log.Fatalf("Failed to create retriever: %v", err)}
+// Handle retrieval errorsresults, err := ai.Retrieve(ctx, retriever, ai.WithDocs(query))if err != nil {    log.Printf("Retrieval failed: %v", err)    // Implement fallback logic}
+```
+
+## Best Practices
+
+[Section titled “Best Practices”](#best-practices)
+
+### Performance Optimization
+
+[Section titled “Performance Optimization”](#performance-optimization)
+
+- **Batch Operations**: Use Firestore batch writes when adding multiple documents
+- **Index Configuration**: Set up appropriate Firestore indexes for your queries
+- **Caching**: Implement caching for frequently accessed documents
+- **Pagination**: Use pagination for large result sets
+
+### Security
+
+[Section titled “Security”](#security)
+
+- **Firestore Rules**: Configure proper security rules for your collections
+- **API Keys**: Never expose Firebase configuration in client-side code
+- **Authentication**: Implement proper user authentication for sensitive data
+
+### Cost Management
+
+[Section titled “Cost Management”](#cost-management)
+
+- **Document Size**: Keep documents reasonably sized to minimize read costs
+- **Query Optimization**: Design efficient queries to reduce operation costs
+- **Storage Management**: Regularly clean up unused documents and embeddings
+
+## Integration Examples
+
+[Section titled “Integration Examples”](#integration-examples)
+
+### With Multiple Embedders
+
+[Section titled “With Multiple Embedders”](#with-multiple-embedders)
+
+```
+// Use different embedders for different types of contenttechnicalRetriever, err := firebase.DefineRetriever(ctx, g, firebase.RetrieverOptions{    Name:         "technical-docs",    Collection:   "technical_documents",    VectorField:  "embedding",    EmbedderName: "text-embedding-3-large", // More accurate for technical content    TopK:         5,})
+generalRetriever, err := firebase.DefineRetriever(ctx, g, firebase.RetrieverOptions{    Name:         "general-knowledge",    Collection:   "general_documents",    VectorField:  "embedding",    EmbedderName: "text-embedding-3-small", // Faster for general content    TopK:         10,})
+```
+
+### With Flows
+
+[Section titled “With Flows”](#with-flows)
+
+```
+ragFlow := genkit.DefineFlow(g, "rag-qa", func(ctx context.Context, query string) (string, error) {    // Retrieve context    results, err := ai.Retrieve(ctx, retriever, ai.WithDocs(query))    if err != nil {        return "", err    }
+    // Generate response    response, err := genkit.Generate(ctx, g,        ai.WithPrompt(buildPromptWithContext(query, results)),    )    if err != nil {        return "", err    }
+    return response.Text(), nil})
+```
+---
+# MCP (Model Context Protocol) plugin
+
+The MCP (Model Context Protocol) plugin enables integration with MCP servers and allows you to expose Genkit tools as MCP servers. You can connect to external MCP servers to use their tools and prompts, manage multiple server connections, or turn your Genkit application into an MCP server.
+
+## Prerequisites
+
+[Section titled “Prerequisites”](#prerequisites)
+
+This plugin requires MCP servers to be available. For testing and development, you can use:
+
+- `mcp-server-time` - Spmple server Exposing time operations
+- `@modelcontextprotocol/server-everything` - A comprehensive MCP server for testing
+- Custom MCP servers written in Python, TypeScript, or other languages
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+### Single Server Connection
+
+[Section titled “Single Server Connection”](#single-server-connection)
+
+To connect to a single MCP server, import the `mcp` package and create a `GenkitMCPClient`:
+
+```
+import "github.com/firebase/genkit/go/plugins/mcp"
+```
+
+```
+ctx := context.Background()g, err := genkit.Init(ctx)if err != nil {    log.Fatal(err)}
+client, err := mcp.NewGenkitMCPClient(mcp.MCPClientOptions{    Name: "mcp-server-time",    Stdio: &mcp.StdioConfig{        Command: "uvx",        Args: []string{"mcp-server-time"},    },})if err != nil {    log.Fatal(err)}
+```
+
+### Multiple Server Management
+
+[Section titled “Multiple Server Management”](#multiple-server-management)
+
+To manage connections to multiple MCP servers, use `GenkitMCPManager`:
+
+```
+import "github.com/firebase/genkit/go/plugins/mcp"
+```
+
+```
+manager, err := mcp.NewMCPManager(mcp.MCPManagerOptions{    Name: "my-app",    MCPServers: []mcp.MCPServerConfig{        {            Name: "everything-server",            Config: mcp.MCPClientOptions{                Name: "everything-server",                Stdio: &mcp.StdioConfig{                    Command: "npx",                    Args: []string{"-y", "@modelcontextprotocol/server-everything"},                },            },        },        {            Name: "mcp-server-time",            Config: mcp.MCPClientOptions{                Name: "mcp-server-time",                Stdio: &mcp.StdioConfig{                    Command: "uvx",                    Args: []string{"mcp-server-time"},                },            },        },    },})if err != nil {    log.Fatal(err)}
+```
+
+### Exposing as MCP Server
+
+[Section titled “Exposing as MCP Server”](#exposing-as-mcp-server)
+
+To expose your Genkit tools as an MCP server, create an `MCPServer`:
+
+```
+import "github.com/firebase/genkit/go/plugins/mcp"
+```
+
+```
+// Define your tools firstaddTool := genkit.DefineTool(g, "add", "Add two numbers",    func(ctx *ai.ToolContext, input struct{A, B int}) (int, error) {        return input.A + input.B, nil    })
+// Create MCP serverserver := mcp.NewMCPServer(g, mcp.MCPServerOptions{    Name:    "genkit-calculator",    Version: "1.0.0",})
+```
+
+## Usage
+
+[Section titled “Usage”](#usage)
+
+### Using Tools from MCP Servers
+
+[Section titled “Using Tools from MCP Servers”](#using-tools-from-mcp-servers)
+
+Once connected to an MCP server, you can retrieve and use its tools:
+
+```
+// Get a specific toolechoTool, err := client.GetTool(ctx, g, "echo")if err != nil {    log.Fatal(err)}
+// Use the tool in your workflowresp, err := genkit.Generate(ctx, g,    ai.WithModel(myModel),    ai.WithPrompt("Use the echo tool to repeat this message"),    ai.WithTools(echoTool),)if err != nil {    log.Fatal(err)}
+```
+
+### Using Prompts from MCP Servers
+
+[Section titled “Using Prompts from MCP Servers”](#using-prompts-from-mcp-servers)
+
+Retrieve and use prompts from connected MCP servers:
+
+```
+// Get a specific promptsimplePrompt, err := client.GetPrompt(ctx, g, "simple_prompt")if err != nil {    log.Fatal(err)}
+// Use the promptresp, err := genkit.Generate(ctx, g,    ai.WithModel(myModel),    ai.WithPrompt(simplePrompt),)
+```
+
+### Managing Multiple Servers
+
+[Section titled “Managing Multiple Servers”](#managing-multiple-servers)
+
+With `GenkitMCPManager`, you can dynamically manage server connections:
+
+```
+// Connect to a new server at runtimeerr = manager.Connect("weather", mcp.MCPClientOptions{    Name: "weather-server",    Stdio: &mcp.StdioConfig{        Command: "python",        Args: []string{"weather_server.py"},    },})if err != nil {    log.Fatal(err)}
+// Disconnect a server completelyerr = manager.Disconnect("weather")if err != nil {    log.Fatal(err)}
+// Get all tools from all active serverstools, err := manager.GetActiveTools(ctx, g)if err != nil {    log.Fatal(err)}
+// Get a specific prompt from a specific serverprompt, err := manager.GetPrompt(ctx, g, "mcp-server-time", "current_time", nil)if err != nil {    log.Fatal(err)}
+```
+
+For individual client management (disable/enable without disconnecting), you would access the clients directly. The manager focuses on connection lifecycle management.
+
+### Running as MCP Server
+
+[Section titled “Running as MCP Server”](#running-as-mcp-server)
+
+To run your Genkit application as an MCP server:
+
+```
+// Option 1: Auto-expose all defined toolsserver := mcp.NewMCPServer(g, mcp.MCPServerOptions{    Name:    "genkit-calculator",    Version: "1.0.0",})
+// Option 2: Expose only specific toolsserver = mcp.NewMCPServer(g, mcp.MCPServerOptions{    Name:    "genkit-calculator",    Version: "1.0.0",    Tools:   []ai.Tool{addTool, multiplyTool},})
+// Start the MCP serverlog.Println("Starting MCP server...")if err := server.ServeStdio(ctx); err != nil {    log.Fatal(err)}
+```
+
+## Transport Options
+
+[Section titled “Transport Options”](#transport-options)
+
+### Stdio Transport
+
+[Section titled “Stdio Transport”](#stdio-transport)
+
+You can use either Stdio or SSE
+
+```
+Stdio: &mcp.StdioConfig{    Command: "uvx",    Args: []string{"mcp-server-time"},    Env: []string{"DEBUG=1"},}
+```
+
+```
+SSE: &mcp.SSEConfig{    BaseURL: "http://localhost:3000/sse",}
+```
+
+## Testing
+
+[Section titled “Testing”](#testing)
+
+### Testing Your MCP Server
+
+[Section titled “Testing Your MCP Server”](#testing-your-mcp-server)
+
+To test your Genkit application as an MCP server:
+
+Terminal window ```
+# Run your servergo run main.go
+# Test with MCP Inspector in another terminalnpx @modelcontextprotocol/inspector go run main.go
+```
+
+## Configuration Options
+
+[Section titled “Configuration Options”](#configuration-options)
+
+### MCPClientOptions
+
+[Section titled “MCPClientOptions”](#mcpclientoptions)
+
+```
+type MCPClientOptions struct {    Name     string          // Server identifier    Version  string          // Version number (defaults to "1.0.0")    Disabled bool            // Disabled flag to temporarily disable this client    Stdio    *StdioConfig    // Stdio transport config    SSE      *SSEConfig      // SSE transport config}
+```
+
+### StdioConfig
+
+[Section titled “StdioConfig”](#stdioconfig)
+
+```
+type StdioConfig struct {    Command string   // Command to run    Args    []string // Command arguments    Env     []string // Environment variables}
+```
+
+### MCPServerConfig
+
+[Section titled “MCPServerConfig”](#mcpserverconfig)
+
+```
+type MCPServerConfig struct {    Name   string            // Name for this server    Config MCPClientOptions  // Client configuration options}
+```
+
+### MCPManagerOptions
+
+[Section titled “MCPManagerOptions”](#mcpmanageroptions)
+
+```
+type MCPManagerOptions struct {    Name       string              // Manager instance name    Version    string              // Manager version (defaults to "1.0.0")    MCPServers []MCPServerConfig   // Array of server configurations}
+```
+
+### MCPServerOptions
+
+[Section titled “MCPServerOptions”](#mcpserveroptions)
+
+```
+type MCPServerOptions struct {    Name    string     // Server name    Version string     // Server version    Tools   []ai.Tool  // Specific tools to expose (optional)}
+```
+---
+# Ollama plugin
+
+The Ollama plugin provides interfaces to any of the local LLMs supported by
+[Ollama](https://ollama.com/).
+
+## Prerequisites
+
+[Section titled “Prerequisites”](#prerequisites)
+
+This plugin requires that you first install and run the Ollama server. You can
+follow the instructions on the [Download Ollama](https://ollama.com/download)
+page.
+
+Use the Ollama CLI to download the models you are interested in. For example:
+
+Terminal window ```
+ollama pull gemma3
+```
+
+For development, you can run Ollama on your development machine. Deployed apps
+usually run Ollama on a GPU-accelerated machine that is different from the one
+hosting the app backend running Genkit.
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+To use this plugin, pass `ollama.Ollama` to `WithPlugins()` in the Genkit
+initializer, specifying the address of your Ollama server:
+
+```
+import "github.com/firebase/genkit/go/plugins/ollama"
+```
+
+```
+g, err := genkit.Init(context.Background(), genkit.WithPlugins(&ollama.Ollama{ServerAddress: "http://127.0.0.1:11434"}))
+```
+
+## Usage
+
+[Section titled “Usage”](#usage)
+
+To generate content, you first need to create a model definition based on the
+model you installed and want to use. For example, if you installed Gemma 2:
+
+```
+model := ollama.DefineModel(    ollama.ModelDefinition{        Name: "gemma3",        Type: "chat", // "chat" or "generate"    },    &ai.ModelInfo{        Multiturn:  true,        SystemRole: true,        Tools:      false,        Media:      false,    },)
+```
+
+Then, you can use the model reference to send requests to your Ollama server:
+
+```
+resp, err := genkit.Generate(ctx, g, ai.WithModel(model), ai.WithPrompt("Tell me a joke."))if err != nil {    return err}
+log.Println(resp.Text())
+```
+
+See [Generating content](/go/docs/models) for more information.
+---
+# OpenAI-Compatible API plugin
+
+The OpenAI-Compatible API plugin ( `compat_oai`) provides a unified interface for accessing multiple AI providers that implement OpenAI’s API specification. This includes OpenAI, Anthropic, and other compatible services.
+
+## Overview
+
+[Section titled “Overview”](#overview)
+
+The `compat_oai` package serves as a foundation for building plugins that work with OpenAI-compatible APIs. It includes:
+
+- **Base Implementation**: Common functionality for OpenAI-compatible APIs
+- **OpenAI Plugin**: Direct access to OpenAI’s models and embeddings
+- **Anthropic Plugin**: Access to Claude models through OpenAI-compatible endpoints
+- **Extensible Framework**: Build custom plugins for other compatible providers
+
+## Prerequisites
+
+[Section titled “Prerequisites”](#prerequisites)
+
+Depending on which provider you use, you’ll need:
+
+- **OpenAI**: API key from [OpenAI API Keys page](https://platform.openai.com/api-keys)
+- **Anthropic**: API key from [Anthropic Console](https://console.anthropic.com/)
+- **Other providers**: API keys from the respective services
+
+## OpenAI Provider
+
+[Section titled “OpenAI Provider”](#openai-provider)
+
+### Configuration
+
+[Section titled “Configuration”](#configuration)
+
+```
+import "github.com/firebase/genkit/go/plugins/compat_oai/openai"
+```
+
+```
+g, err := genkit.Init(context.Background(), genkit.WithPlugins(&openai.OpenAI{    APIKey: "YOUR_OPENAI_API_KEY", // or set OPENAI_API_KEY env var}))
+```
+
+### Supported Models
+
+[Section titled “Supported Models”](#supported-models)
+
+#### Latest Models
+
+[Section titled “Latest Models”](#latest-models)
+
+- **gpt-4.1** - Latest GPT-4.1 with multimodal support
+- **gpt-4.1-mini** - Faster, cost-effective GPT-4.1 variant
+- **gpt-4.1-nano** - Ultra-efficient GPT-4.1 variant
+- **gpt-4.5-preview** - Preview of GPT-4.5 with advanced capabilities
+
+#### Production Models
+
+[Section titled “Production Models”](#production-models)
+
+- **gpt-4o** - Advanced GPT-4 with vision and tool support
+- **gpt-4o-mini** - Fast and cost-effective GPT-4o variant
+- **gpt-4-turbo** - High-performance GPT-4 with large context window
+
+#### Reasoning Models
+
+[Section titled “Reasoning Models”](#reasoning-models)
+
+- **o3-mini** - Latest compact reasoning model
+- **o1** - Advanced reasoning model for complex problems
+- **o1-mini** - Compact reasoning model
+- **o1-preview** - Preview reasoning model
+
+#### Legacy Models
+
+[Section titled “Legacy Models”](#legacy-models)
+
+- **gpt-4** - Original GPT-4 model
+- **gpt-3.5-turbo** - Fast and efficient language model
+
+### Embedding Models
+
+[Section titled “Embedding Models”](#embedding-models)
+
+- **text-embedding-3-large** - Most capable embedding model
+- **text-embedding-3-small** - Fast and efficient embedding model
+- **text-embedding-ada-002** - Legacy embedding model
+
+### OpenAI Usage Example
+
+[Section titled “OpenAI Usage Example”](#openai-usage-example)
+
+```
+import (    "github.com/firebase/genkit/go/plugins/compat_oai/openai"    "github.com/firebase/genkit/go/plugins/compat_oai")
+// Initialize OpenAI pluginoai := &openai.OpenAI{APIKey: "YOUR_API_KEY"}g, err := genkit.Init(ctx, genkit.WithPlugins(oai))
+// Use GPT-4o for general tasksmodel := oai.Model(g, "gpt-4o")resp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithPrompt("Explain quantum computing."),)
+// Use embeddingsembedder := oai.Embedder(g, "text-embedding-3-large")embeds, err := ai.Embed(ctx, embedder, ai.WithDocs("Hello, world!"))
+```
+
+## Anthropic Provider
+
+[Section titled “Anthropic Provider”](#anthropic-provider)
+
+### Configuration
+
+[Section titled “Configuration”](#configuration-1)
+
+```
+import "github.com/firebase/genkit/go/plugins/compat_oai/anthropic"
+```
+
+```
+g, err := genkit.Init(context.Background(), genkit.WithPlugins(&anthropic.Anthropic{    Opts: []option.RequestOption{        option.WithAPIKey("YOUR_ANTHROPIC_API_KEY"),    },}))
+```
+
+### Supported Models
+
+[Section titled “Supported Models”](#supported-models-1)
+
+- **claude-3-7-sonnet-20250219** - Latest Claude 3.7 Sonnet with advanced capabilities
+- **claude-3-5-haiku-20241022** - Fast and efficient Claude 3.5 Haiku
+- **claude-3-5-sonnet-20240620** - Balanced Claude 3.5 Sonnet
+- **claude-3-opus-20240229** - Most capable Claude 3 model
+- **claude-3-haiku-20240307** - Fastest Claude 3 model
+
+### Anthropic Usage Example
+
+[Section titled “Anthropic Usage Example”](#anthropic-usage-example)
+
+```
+import (    "github.com/firebase/genkit/go/plugins/compat_oai/anthropic"    "github.com/openai/openai-go/option")
+// Initialize Anthropic pluginclaude := &anthropic.Anthropic{    Opts: []option.RequestOption{        option.WithAPIKey("YOUR_ANTHROPIC_API_KEY"),    },}g, err := genkit.Init(ctx, genkit.WithPlugins(claude))
+// Use Claude for tasks requiring reasoningmodel := claude.Model(g, "claude-3-7-sonnet-20250219")resp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithPrompt("Analyze this complex problem step by step."),)
+```
+
+## Using Multiple Providers
+
+[Section titled “Using Multiple Providers”](#using-multiple-providers)
+
+You can use both providers in the same application:
+
+```
+import (    "github.com/firebase/genkit/go/plugins/compat_oai/openai"    "github.com/firebase/genkit/go/plugins/compat_oai/anthropic")
+oai := &openai.OpenAI{APIKey: "YOUR_OPENAI_KEY"}claude := &anthropic.Anthropic{    Opts: []option.RequestOption{        option.WithAPIKey("YOUR_ANTHROPIC_KEY"),    },}
+g, err := genkit.Init(ctx, genkit.WithPlugins(oai, claude))
+// Use OpenAI for embeddings and tool-heavy tasksopenaiModel := oai.Model(g, "gpt-4o")embedder := oai.Embedder(g, "text-embedding-3-large")
+// Use Anthropic for reasoning and analysisclaudeModel := claude.Model(g, "claude-3-7-sonnet-20250219")
+```
+
+## Advanced Features
+
+[Section titled “Advanced Features”](#advanced-features)
+
+### Tool Calling
+
+[Section titled “Tool Calling”](#tool-calling)
+
+OpenAI models support tool calling:
+
+```
+// Define a toolweatherTool := genkit.DefineTool(g, "get_weather", "Get current weather",    func(ctx *ai.ToolContext, input struct{City string}) (string, error) {        return fmt.Sprintf("It's sunny in %s", input.City), nil    })
+// Use with GPT models (tools not supported on Claude via OpenAI API)model := oai.Model(g, "gpt-4o")resp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithPrompt("What's the weather like in San Francisco?"),    ai.WithTools(weatherTool),)
+```
+
+### Multimodal Support
+
+[Section titled “Multimodal Support”](#multimodal-support)
+
+Both providers support vision capabilities:
+
+```
+// Works with GPT-4o and Claude modelsresp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithMessages([]*ai.Message{        ai.NewUserMessage(            ai.WithTextPart("What do you see in this image?"),            ai.WithMediaPart("image/jpeg", imageData),        ),    }),)
+```
+
+### Streaming
+
+[Section titled “Streaming”](#streaming)
+
+Both providers support streaming responses:
+
+```
+resp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithPrompt("Write a long explanation."),    ai.WithStreaming(func(ctx context.Context, chunk *ai.ModelResponseChunk) error {        for _, content := range chunk.Content {            fmt.Print(content.Text)        }        return nil    }),)
+```
+
+## Configuration
+
+[Section titled “Configuration”](#configuration-2)
+
+### Common Configuration
+
+[Section titled “Common Configuration”](#common-configuration)
+
+Both providers support OpenAI-compatible configuration:
+
+```
+import "github.com/firebase/genkit/go/plugins/compat_oai"
+config := &compat_oai.OpenAIConfig{    Temperature:     0.7,    MaxOutputTokens: 1000,    TopP:            0.9,    StopSequences:   []string{"END"},}
+resp, err := genkit.Generate(ctx, g,    ai.WithModel(model),    ai.WithPrompt("Your prompt here"),    ai.WithConfig(config),)
+```
+
+### Advanced Options
+
+[Section titled “Advanced Options”](#advanced-options)
+
+```
+import "github.com/openai/openai-go/option"
+// Custom base URL for OpenAI-compatible servicesopts := []option.RequestOption{    option.WithAPIKey("YOUR_API_KEY"),    option.WithBaseURL("https://your-custom-endpoint.com/v1"),    option.WithOrganization("your-org-id"),    option.WithHeader("Custom-Header", "value"),}
+```
+---
+# pgvector retriever template
+
+You can use PostgreSQL and `pgvector` as your retriever implementation. Use the
+following examples as a starting point and modify it to work with your database
+schema.
+
+We use [database/sql](https://pkg.go.dev/database/sql) to connect to the Postgres server, but you may use another client library of your choice.
+
+```
+func defineRetriever(g *genkit.Genkit, db *sql.DB, embedder ai.Embedder) ai.Retriever {  f := func(ctx context.Context, req *ai.RetrieverRequest) (*ai.RetrieverResponse, error) {    eres, err := ai.Embed(ctx, embedder, ai.WithDocs(req.Query))    if err != nil {      return nil, err    }    rows, err := db.QueryContext(ctx, `      SELECT episode_id, season_number, chunk as content      FROM embeddings      WHERE show_id = $1        ORDER BY embedding <#> $2        LIMIT 2`,      req.Options, pgv.NewVector(eres.Embeddings[0].Embedding))    if err != nil {      return nil, err    }    defer rows.Close()
+    res := &ai.RetrieverResponse{}    for rows.Next() {      var eid, sn int      var content string      if err := rows.Scan(&eid, &sn, &content); err != nil {        return nil, err      }      meta := map[string]any{        "episode_id":    eid,        "season_number": sn,      }      doc := &ai.Document{        Content:  []*ai.Part{ai.NewTextPart(content)},        Metadata: meta,      }      res.Documents = append(res.Documents, doc)    }    if err := rows.Err(); err != nil {      return nil, err    }    return res, nil  }  return genkit.DefineRetriever(g, provider, "shows", f)}
+```
+
+And here’s how to use the retriever in a flow:
+
+```
+retriever := defineRetriever(g, db, embedder)
+type input struct {  Question string  Show     string}
+genkit.DefineFlow(g, "askQuestion", func(ctx context.Context, in input) (string, error) {  res, err := ai.Retrieve(ctx, retriever,    ai.WithConfig(in.Show),    ai.WithTextDocs(in.Question))  if err != nil {    return "", err  }  for _, doc := range res.Documents {    fmt.Printf("%+v %q\n", doc.Metadata, doc.Content[0].Text)  }  // Use documents in RAG prompts.  return "", nil})
+```
+---
+# Pinecone plugin
+
+The Pinecone plugin provides indexer and retriever implementatons that use the
+[Pinecone](https://www.pinecone.io/) cloud vector database.
+
+## Configuration
+
+[Section titled “Configuration”](#configuration)
+
+To use this plugin, import the `pinecone` package and call `pinecone.Init()`:
+
+```
+import "github.com/firebase/genkit/go/plugins/pinecone"
+```
+
+```
+if err := (&pinecone.Pinecone{}).Init(ctx, g); err != nil {  return err}
+```
+
+The plugin requires your Pinecone API key.
+Configure the plugin to use your API key by doing one of the following:
+
+- Set the `PINECONE_API_KEY` environment variable to your API key.
+- Specify the API key when you initialize the plugin:
+
+```
+if err := (&pinecone.Pinecone{APIKey: pineconeAPIKey}).Init(ctx, g); err != nil {  return err}
+```
+
+However, don’t embed your API key directly in code! Use this feature only
+in conjunction with a service like Cloud Secret Manager or similar.
+
+## Usage
+
+[Section titled “Usage”](#usage)
+
+To add documents to a Pinecone index, first create an index definition that
+specifies the name of the index and the embedding model you’re using:
+
+```
+menuIndexer, err := pinecone.DefineIndexer(ctx, g, pinecone.Config{  IndexID:  "menu_data",                                           // Your Pinecone index  Embedder: googlegenai.GoogleAIEmbedder(g, "text-embedding-004"), // Embedding model of your choice})if err != nil {  return err}
+```
+
+You can also optionally specify the key that Pinecone uses for document data
+( `_content`, by default).
+
+Then, call the index’s `Index()` method, passing it a list of the documents you
+want to add:
+
+```
+if err := ai.Index(  ctx,  menuIndexer,  ai.WithDocs(docChunks...)); err != nil {  return err}
+```
+
+Similarly, to retrieve documents from an index, first create a retriever
+definition:
+
+```
+menuRetriever, err := pinecone.DefineRetriever(ctx, g, pinecone.Config{  IndexID:  "menu_data",                                           // Your Pinecone index  Embedder: googlegenai.GoogleAIEmbedder(g, "text-embedding-004"), // Embedding model of your choice})if err != nil {  return err}
+```
+
+Then, call the retriever’s `Retrieve()` method, passing it a text query:
+
+```
+resp, err := menuRetriever.Retrieve(ctx, &ai.RetrieverRequest{  Query:   ai.DocumentFromText(userInput, nil),  Options: nil,})if err != nil {  return err}menuInfo := resp.Documents
+```
+
+See the [Retrieval-augmented generation](/go/docs/rag) page for a general
+discussion on using indexers and retrievers for RAG.
+---
+# Third-party plugins by Firebase and partners
+
+This page lists third-party plugins for Genkit that are built and maintained by Firebase or
+our partners.
+
+Pinecone
+
+The Pinecone plugin provides indexer and retriever implementations that use the
+
+[Pinecone](https://www.pinecone.io/product/) cloud vector database.
+
+[View plugin info](/go/docs/plugins/pinecone)
+
+Ollama
+
+The Ollama plugin provides interfaces to any of the local LLMs supported by
+
+[Ollama](https://ollama.com) [View plugin info](/go/docs/plugins/ollama)
+
+pgvector
+
+The pgvector template is an example PostgreSQL and pgvector retriever implementation. You can use the provided
+examples as a starting point and modify them to work with your database schema.
+
+[View template](/go/docs/plugins/pgvector)
+---
